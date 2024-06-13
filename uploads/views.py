@@ -1,51 +1,45 @@
-from django.shortcuts import render
-from django.http import JsonResponse
+# uploads/views.py
+
+from rest_framework import viewsets, status
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from .models import FileUpload
+from .serializers import FileUploadSerializer, UpdatePrioritySerializer, UpdateStatusSerializer
 import redis
 
 r = redis.Redis()
 
-def change_upload_priority(request, upload_id, priority):
-    # Assuming 'upload_id' is the file path or some unique identifier
-    study_info = None
-    for item in r.zrange('upload_queue', 0, -1, withscores=False):
-        if eval(item).get('guid') == upload_id:
-            study_info = item
-            break
-    if study_info:
-        r.zadd('upload_queue', {study_info: priority})
-        return JsonResponse({'status': 'priority changed'})
-    return JsonResponse({'status': 'not found'})
+class FileUploadViewSet(viewsets.ModelViewSet):
+    queryset = FileUpload.objects.all()
+    serializer_class = FileUploadSerializer
 
-def pause_upload(request, upload_id):
-    # Pause by removing from queue
-    study_info = None
-    for item in r.zrange('upload_queue', 0, -1, withscores=False):
-        if eval(item).get('guid') == upload_id:
-            study_info = item
-            break
-    if study_info:
-        r.zrem('upload_queue', study_info)
-        r.hset('paused_uploads', upload_id, study_info)
-        return JsonResponse({'status': 'paused'})
-    return JsonResponse({'status': 'not found'})
+    @action(detail=False, methods=['post'])
+    def update_priority(self, request):
+        serializer = UpdatePrioritySerializer(data=request.data)
+        if serializer.is_valid():
+            guid = serializer.validated_data['guid']
+            priority = serializer.validated_data['priority']
+            try:
+                file_upload = FileUpload.objects.get(guid=guid)
+                file_upload.priority = priority
+                file_upload.save()
+                r.zadd(file_upload.queue_name, {str(file_upload): priority})
+                return Response({'status': 'priority updated'})
+            except FileUpload.DoesNotExist:
+                return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-def resume_upload(request, upload_id):
-    # Resume by adding back to queue
-    study_info = r.hget('paused_uploads', upload_id)
-    if study_info:
-        r.zadd('upload_queue', {study_info: 0})  # Default priority
-        r.hdel('paused_uploads', upload_id)
-        return JsonResponse({'status': 'resumed'})
-    return JsonResponse({'status': 'not found'})
-
-def cancel_upload(request, upload_id):
-    # Cancel by removing from queue
-    study_info = None
-    for item in r.zrange('upload_queue', 0, -1, withscores=False):
-        if eval(item).get('guid') == upload_id:
-            study_info = item
-            break
-    if study_info:
-        r.zrem('upload_queue', study_info)
-        return JsonResponse({'status': 'canceled'})
-    return JsonResponse({'status': 'not found'})
+    @action(detail=False, methods=['post'])
+    def update_status(self, request):
+        serializer = UpdateStatusSerializer(data=request.data)
+        if serializer.is_valid():
+            guid = serializer.validated_data['guid']
+            status = serializer.validated_data['status']
+            try:
+                file_upload = FileUpload.objects.get(guid=guid)
+                file_upload.status = status
+                file_upload.save()
+                return Response({'status': 'status updated'})
+            except FileUpload.DoesNotExist:
+                return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

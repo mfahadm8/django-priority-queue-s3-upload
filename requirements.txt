@@ -1,5 +1,5 @@
 channels_redis
-'uvicorn[standard]'
+uvicorn[standard]
 anyio==4.4.0
 asgiref==3.8.1
 async-timeout==4.0.3

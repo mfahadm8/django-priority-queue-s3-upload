@@ -1,30 +1,23 @@
-import json
-from channels.generic.websocket import AsyncWebsocketConsumer
-import redis
-# import pdb
+# uploads/consumers.py
 
-# pdb.set_trace()
+import json
+import redis
+from channels.generic.websocket import WebsocketConsumer
+
 r = redis.Redis()
 
-class UploadProgressConsumer(AsyncWebsocketConsumer):
-    
-    async def connect(self):
-        await self.accept()
-        # self.r = redis.Redis(host='localhost', port=6379, db=0)
-        print("connected")
+class UploadProgressConsumer(WebsocketConsumer):
+    def connect(self):
+        self.accept()
 
-    async def disconnect(self, close_code):
+    def disconnect(self, close_code):
         pass
 
-    async def receive(self, text_data):
+    def receive(self, text_data):
         data = json.loads(text_data)
-        filename = "text"
-        print("text_data",text_data)
-        progress = self.r.get(f'progress:{filename}')
-        progress = 0.0
-        progress = float(progress) if progress else 0.0
-
-        await self.send(text_data=json.dumps({
-            'filename': filename,
-            'progress': progress
+        file_path = data['file_path']
+        progress = r.get(f'progress:{file_path}')
+        self.send(json.dumps({
+            'file_path': file_path,
+            'progress': float(progress) if progress else 0
         }))
