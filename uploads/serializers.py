@@ -8,6 +8,7 @@ class FileUploadSerializer(serializers.ModelSerializer):
         model = FileUpload
         fields = '__all__'
 
+
 class UpdatePrioritySerializer(serializers.Serializer):
     guid = serializers.CharField(max_length=255)
     priority = serializers.IntegerField()
