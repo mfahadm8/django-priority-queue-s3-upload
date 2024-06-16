@@ -1,0 +1,36 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: file_uploader
+    ports:
+      - "8001:8000"
+    command:  python -m uvicorn file_uploader.asgi:application --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/opt/file_uploader
+      - /home/ubuntu/.aws/:/root/.aws/:ro
+    environment:
+      DJANGO_SETTINGS_MODULE: file_uploader.settings
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672/
+
+
+  rabbitmq:
+    image: rabbitmq:3.9-management-alpine
+    command: ash -c "echo 'log.console.level = warning' >>/etc/rabbitmq/conf.d/10-default-guest-user.conf && rabbitmq-server"
+    ports:
+      - 5672:5672
+      - 15672:15672
+
+  worker:
+    image: file_uploader
+    depends_on:
+      - rabbitmq
+      - web
+    command: celery -A file_uploader worker --concurrency=5
+    volumes:
+      - .:/opt/file_uploader
+      - /home/ubuntu/.aws/:/root/.aws/:ro
+    environment:
+      DJANGO_SETTINGS_MODULE: file_uploader.settings
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672/

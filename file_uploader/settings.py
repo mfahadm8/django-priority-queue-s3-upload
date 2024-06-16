@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/3.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.2/ref/settings/
 """
-
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -40,7 +40,8 @@ INSTALLED_APPS = [
     'uploads',
     'django_rq',
     'channels',
-    'django_pdb'
+    'django_pdb',
+    'django_celery_results',
 ]
 
 MIDDLEWARE = [
@@ -145,3 +146,11 @@ STATIC_URL = '/static/'
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+
+
+broker_url = os.environ.get("CELERY_BROKER_URL")
+result_backend = None
+task_acks_late = True
+worker_prefetch_multiplier = 1
