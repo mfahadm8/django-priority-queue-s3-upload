@@ -35,11 +35,10 @@ def upload_file(file_path, object_name):
     file_size = os.path.getsize(file_path)
     config = TransferConfig(multipart_threshold=1024*25, max_concurrency=10, multipart_chunksize=1024*25, use_threads=True)
     transfer = S3Transfer(s3_client, config)
-    with open(file_path, 'rb') as f:
-        transfer.upload_fileobj(
-            f, BUCKET_NAME, object_name,
-            callback=ProgressPercentage(file_path, file_size)
-        )
+    transfer.upload_file(
+        file_path, BUCKET_NAME, object_name,
+        callback=ProgressPercentage(file_path, file_size)
+    )
 
 @app.task(time_limit=10800)
 def process_file_upload(file_path, object_name, guid):

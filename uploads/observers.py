@@ -8,7 +8,6 @@ from rest_framework.renderers import JSONRenderer
 from .tasks import process_queue
 from .models import FileUpload
 from .serializers import FileUploadSerializer
-from .redis_util import redis_connection as r
 
 WATCHED_DIR = '/tmp/test'
 
@@ -22,7 +21,7 @@ class FileCreationHandler(FileSystemEventHandler):
             guid = object_name
             instance_uid = 'some_instance_uid'
             timestamp = time.time()
-            priority = 0
+            priority = int(timestamp)
 
             # Create the FileUpload instance
             file_upload = FileUpload(
@@ -34,15 +33,8 @@ class FileCreationHandler(FileSystemEventHandler):
                 status='queued',
                 timestamp=timestamp
             )
-            logging.info(file_upload)
-            
-            # Serialize the data
-            serializer = FileUploadSerializer(file_upload)
-            study_info_str = JSONRenderer().render(serializer.data)
-            logging.info(study_info_str)
-            
-            # Add to Redis
-            r.zadd('upload_queue_json', {study_info_str.decode('utf-8'): timestamp})
+            logging.info(file_upload)  
+            file_upload.save()
             logging.debug(f"Added file to queue: {file_path}")
 
 
