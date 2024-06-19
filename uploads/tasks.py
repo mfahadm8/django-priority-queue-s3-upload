@@ -9,6 +9,7 @@ from .serializers import FileUploadSerializer
 import logging
 from .redis_util import redis_connection as r
 
+logging.getLogger().setLevel(logging.DEBUG)
 s3_client = boto3.client('s3')
 BUCKET_NAME = 'cdk-hnb659fds-assets-182426352951-ap-southeast-1'
 MAX_UPLOADS = os.cpu_count() or 2  # Default to 2 if os.cpu_count() is None
@@ -58,6 +59,8 @@ def update_status_in_queue(queue_name, filename, new_status):
 @app.task(time_limit=10800)
 def process_file_upload(self, file_path, object_name, guid):
     try:
+        logging.info("worker 1")
+        logging.info(object_name)
         upload_file(file_path, object_name)
         r.set(f'status:{guid}', 'completed')
         FileUpload.objects.filter(guid=guid).update(status='completed')
@@ -76,9 +79,12 @@ def process_file_upload(self, file_path, object_name, guid):
 def process_queue(self, queue_name):
     while True:
         try:
+            logging.info("in here")
             uploading_tasks = FileUpload.objects.filter(status='uploading').count()
             if uploading_tasks < MAX_UPLOADS:
                 study_info_list = r.zrange(queue_name, 0, 0, withscores=False)
+                logging.info("in here 1")
+                logging.info(study_info_list)
                 if study_info_list:
                     study_info_str = study_info_list[0].decode('utf-8')
                     study_info = json.loads(study_info_str)
@@ -88,7 +94,8 @@ def process_queue(self, queue_name):
                         file_path = study_info['file_path']
                         object_name = study_info['object_name']
                         guid = study_info['guid']
-
+                        logging.info("in here 2")
+                        logging.info(object_name)
                         # Update status to 'uploading'
                         r.set(f'status:{guid}', 'uploading')
                         update_status_in_queue(queue_name, file_path, 'uploading')
