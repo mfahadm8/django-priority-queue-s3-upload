@@ -2,9 +2,7 @@
 
 import json
 from channels.generic.websocket import WebsocketConsumer
-import redis
-
-r = redis.Redis()
+from .redis_util import redis_connection as r
 
 class UploadProgressConsumer(WebsocketConsumer):
     def connect(self):

@@ -79,7 +79,7 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("0.0.0.0", 6379)],
+            "hosts": [("redis", 6379)],
         },
     },
 }
@@ -154,4 +154,5 @@ broker_url = os.environ.get("CELERY_BROKER_URL")
 result_backend = None
 task_acks_late = True
 worker_prefetch_multiplier = 1
-broker_connection_retry_on_startup = True
+broker_connection_retry_on_startup = True 
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True

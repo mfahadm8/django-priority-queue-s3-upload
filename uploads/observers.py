@@ -2,16 +2,15 @@ import os
 import logging
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-import redis
 import threading
 import time
 from rest_framework.renderers import JSONRenderer
 from .tasks import process_queue
 from .models import FileUpload
 from .serializers import FileUploadSerializer
+from .redis_util import redis_connection as r
 
 WATCHED_DIR = '/tmp/test'
-r = redis.Redis()
 
 logging.basicConfig(level=logging.DEBUG)
 

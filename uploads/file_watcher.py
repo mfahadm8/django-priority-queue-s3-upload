@@ -2,14 +2,13 @@ import os
 import logging
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-import redis
 import json
 import time
 from .models import FileUpload
 from .serializers import FileUploadSerializer
 
 WATCHED_DIR = '/tmp/test'
-r = redis.Redis()
+from .redis_util import redis_connection as r
 
 logging.basicConfig(level=logging.DEBUG)
 

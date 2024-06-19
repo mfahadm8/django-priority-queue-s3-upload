@@ -5,9 +5,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from .models import FileUpload
 from .serializers import FileUploadSerializer, UpdatePrioritySerializer, UpdateStatusSerializer
-import redis
-
-r = redis.Redis()
+from .redis_util import redis_connection as r
 
 class FileUploadViewSet(viewsets.ModelViewSet):
     queryset = FileUpload.objects.all()

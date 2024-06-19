@@ -10,6 +10,7 @@ services:
     volumes:
       - .:/opt/file_uploader
       - /home/ubuntu/.aws/:/root/.aws/:ro
+      - /tmp/test:/tmp/test
     environment:
       DJANGO_SETTINGS_MODULE: file_uploader.settings
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672/
@@ -36,6 +37,7 @@ services:
     volumes:
       - .:/opt/file_uploader
       - /home/ubuntu/.aws/:/root/.aws/:ro
+      - /tmp/test:/tmp/test
     environment:
       DJANGO_SETTINGS_MODULE: file_uploader.settings
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672/

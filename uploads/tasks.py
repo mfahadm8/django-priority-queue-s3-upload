@@ -1,5 +1,4 @@
 import os
-import redis
 import boto3
 from celery import shared_task, current_task
 from file_uploader.celery import app
@@ -8,8 +7,8 @@ from boto3.s3.transfer import S3Transfer, TransferConfig
 from .models import FileUpload
 from .serializers import FileUploadSerializer
 import logging
+from .redis_util import redis_connection as r
 
-r = redis.Redis(host='redis', port=6379, db=0)
 s3_client = boto3.client('s3')
 BUCKET_NAME = 'cdk-hnb659fds-assets-182426352951-ap-southeast-1'
 MAX_UPLOADS = os.cpu_count() or 2  # Default to 2 if os.cpu_count() is None
