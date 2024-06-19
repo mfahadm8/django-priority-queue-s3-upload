@@ -7,6 +7,8 @@ from boto3.s3.transfer import S3Transfer, TransferConfig
 import logging
 from django.apps import apps
 from django.conf import settings
+# from celery.contrib import rdb
+# rdb.set_trace()
 
 logging.getLogger().setLevel(logging.DEBUG)
 
@@ -20,24 +22,29 @@ BUCKET_NAME = 'cdk-hnb659fds-assets-182426352951-ap-southeast-1'
 MAX_UPLOADS = os.cpu_count() or 2  # Default to 2 if os.cpu_count() is None
 
 class ProgressPercentage:
-    def __init__(self, filename, size):
+    def __init__(self, filename, size, guid):
         self._filename = filename
         self._size = size
         self._seen_so_far = 0
+        self._guid = guid
 
     def __call__(self, bytes_amount):
         self._seen_so_far += bytes_amount
         percentage = (self._seen_so_far / self._size) * 100
         logging.debug(f"Upload progress for {self._filename}: {percentage:.2f}%")
-        current_task.update_state(state='PROGRESS', meta={'progress': percentage})
+        # Update task state
+        # current_task.update_state(state='PROGRESS', meta={'progress': percentage})
+        # Update database progress
+        FileUpload = apps.get_model('uploads', 'FileUpload')
+        FileUpload.objects.filter(guid=self._guid).update(progress=percentage)
 
-def upload_file(file_path, object_name):
+def upload_file(file_path, object_name, guid):
     file_size = os.path.getsize(file_path)
     config = TransferConfig(multipart_threshold=1024*25, max_concurrency=10, multipart_chunksize=1024*25, use_threads=True)
     transfer = S3Transfer(s3_client, config)
     transfer.upload_file(
         file_path, BUCKET_NAME, object_name,
-        callback=ProgressPercentage(file_path, file_size)
+        callback=ProgressPercentage(file_path, file_size, guid)
     )
 
 @app.task(time_limit=10800)
@@ -45,9 +52,9 @@ def process_file_upload(file_path, object_name, guid):
     try:
         logging.info("worker 1")
         logging.info(object_name)
-        upload_file(file_path, object_name)
+        upload_file(file_path, object_name, guid)
         FileUpload = apps.get_model('uploads', 'FileUpload')
-        FileUpload.objects.filter(guid=guid).update(status='completed')
+        FileUpload.objects.filter(guid=guid).update(status='completed',progress=100)
         if file_path.endswith('.json'):
             # Handle post-upload for json files if needed
             pass

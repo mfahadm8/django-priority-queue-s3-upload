@@ -37,12 +37,17 @@ services:
       POSTGRES_PASSWORD: $DB_PWD
     ports:
       - 5432:5432
+
+
   worker:
     image: file_uploader
     depends_on:
       - rabbitmq
       - web
-    command: celery -A file_uploader worker --concurrency=5
+    command: celery -A file_uploader worker --concurrency=5 --loglevel=DEBUG
+    ports:
+      - 6900:6900
+      - 6899:6899
     volumes:
       - .:/opt/file_uploader
       - /home/ubuntu/.aws/:/root/.aws/:ro
