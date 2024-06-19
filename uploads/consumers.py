@@ -1,21 +1,22 @@
-# uploads/consumers.py
-
+from channels.generic.websocket import AsyncWebsocketConsumer
 import json
-from channels.generic.websocket import WebsocketConsumer
-from .redis_util import redis_connection as r
 
-class UploadProgressConsumer(WebsocketConsumer):
-    def connect(self):
-        self.accept()
+class UploadProgressConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        await self.accept()
 
-    def disconnect(self, close_code):
+    async def disconnect(self, close_code):
         pass
 
-    def receive(self, text_data):
-        data = json.loads(text_data)
-        guid = data['guid']
-        progress = r.get(f'progress:{guid}')
-        self.send(text_data=json.dumps({
-            'guid': guid,
-            'progress': float(progress) if progress else 0
+    async def receive(self, text_data):
+        text_data_json = json.loads(text_data)
+        message = text_data_json['message']
+
+        await self.send(text_data=json.dumps({
+            'message': message
         }))
+
+    @property
+    def file_upload_model(self):
+        from django.apps import apps
+        return apps.get_model('uploads', 'FileUpload')

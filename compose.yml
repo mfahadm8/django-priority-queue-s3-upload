@@ -12,6 +12,11 @@ services:
       - /home/ubuntu/.aws/:/root/.aws/:ro
       - /tmp/test:/tmp/test
     environment:
+      POSTGRES_PORT: $DB_PORT
+      POSTGRES_DB: $DB_NAME
+      POSTGRES_USER: $DB_USER
+      POSTGRES_PASSWORD: $DB_PWD
+      POSTGRES_HOST: $DB_HOST
       DJANGO_SETTINGS_MODULE: file_uploader.settings
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672/
 
@@ -23,11 +28,15 @@ services:
       - 5672:5672
       - 15672:15672
 
-  redis:
-    image: redis:latest
+  db:
+    image: postgres:13-alpine
+    environment:
+      POSTGRES_PORT: $DB_PORT
+      POSTGRES_DB: $DB_NAME
+      POSTGRES_USER: $DB_USER
+      POSTGRES_PASSWORD: $DB_PWD
     ports:
-      - 6379:6379
-  
+      - 5432:5432
   worker:
     image: file_uploader
     depends_on:
@@ -39,5 +48,10 @@ services:
       - /home/ubuntu/.aws/:/root/.aws/:ro
       - /tmp/test:/tmp/test
     environment:
+      POSTGRES_PORT: $DB_PORT
+      POSTGRES_DB: $DB_NAME
+      POSTGRES_USER: $DB_USER
+      POSTGRES_PASSWORD: $DB_PWD
+      POSTGRES_HOST: $DB_HOST
       DJANGO_SETTINGS_MODULE: file_uploader.settings
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672/

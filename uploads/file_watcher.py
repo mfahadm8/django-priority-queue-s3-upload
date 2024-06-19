@@ -1,3 +1,4 @@
+# uploads/file_watcher.py
 import os
 import logging
 from watchdog.observers import Observer
@@ -8,7 +9,6 @@ from .models import FileUpload
 from .serializers import FileUploadSerializer
 
 WATCHED_DIR = '/tmp/test'
-from .redis_util import redis_connection as r
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -31,11 +31,7 @@ class UploadHandler(FileSystemEventHandler):
                 status='queued',
                 timestamp=time.time()  # Add timestamp for processing delay logic
             )
-            # Serialize the instance
-            serializer = FileUploadSerializer(file_upload)
-            study_info = serializer.data
-            # Add to Redis
-            r.zadd(self.queue_name, {json.dumps(study_info): 0})  # Default priority 0
+            file_upload.save()
             logging.debug(f"Added file to queue: {file_path}")
 
 def start_watcher(extension, queue_name):

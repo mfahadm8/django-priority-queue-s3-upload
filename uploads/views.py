@@ -5,7 +5,6 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from .models import FileUpload
 from .serializers import FileUploadSerializer, UpdatePrioritySerializer, UpdateStatusSerializer
-from .redis_util import redis_connection as r
 
 class FileUploadViewSet(viewsets.ModelViewSet):
     queryset = FileUpload.objects.all()
@@ -21,7 +20,6 @@ class FileUploadViewSet(viewsets.ModelViewSet):
                 file_upload = FileUpload.objects.get(guid=guid)
                 file_upload.priority = priority
                 file_upload.save()
-                r.zadd(file_upload.queue_name, {str(file_upload): priority})
                 return Response({'status': 'priority updated'})
             except FileUpload.DoesNotExist:
                 return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)

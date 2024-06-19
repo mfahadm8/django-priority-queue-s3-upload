@@ -74,10 +74,10 @@ def start_observers():
 
 def start_queue_processors():
     logging.debug("Starting queue processors.")
-    json_thread = threading.Thread(target=process_queue, args=('upload_queue_json', 0.7))
+    json_thread = threading.Thread(target=process_queue, args=('upload_queue_json',))
     json_thread.daemon = True
     json_thread.start()
 
-    zip_thread = threading.Thread(target=process_queue, args=('upload_queue_zip', 10))
+    zip_thread = threading.Thread(target=process_queue, args=('upload_queue_zip',))
     zip_thread.daemon = True
     zip_thread.start()
