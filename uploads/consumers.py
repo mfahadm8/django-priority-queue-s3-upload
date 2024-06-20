@@ -1,5 +1,6 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
 import json
+from django.apps import apps
 
 class UploadProgressConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -10,13 +11,31 @@ class UploadProgressConsumer(AsyncWebsocketConsumer):
 
     async def receive(self, text_data):
         text_data_json = json.loads(text_data)
-        message = text_data_json['message']
+        guid = text_data_json['guid']
 
-        await self.send(text_data=json.dumps({
-            'message': message
-        }))
+        # Fetch the file upload instance
+        FileUpload = self.file_upload_model
+        try:
+            file_upload = await self.get_file_upload(guid)
+            response = {
+                'guid': guid,
+                'status': file_upload.status,
+                'progress': file_upload.progress
+            }
+        except FileUpload.DoesNotExist:
+            response = {
+                'error': 'File not found',
+                'guid': guid
+            }
+
+        await self.send(text_data=json.dumps(response))
 
     @property
     def file_upload_model(self):
-        from django.apps import apps
         return apps.get_model('uploads', 'FileUpload')
+
+    async def get_file_upload(self, guid):
+        # Asynchronous call to get the file upload instance
+        FileUpload = self.file_upload_model
+        return await database_sync_to_async(FileUpload.objects.get)(guid=guid)
+

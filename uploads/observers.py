@@ -22,20 +22,21 @@ class FileCreationHandler(FileSystemEventHandler):
             instance_uid = 'some_instance_uid'
             timestamp = time.time()
             priority = int(timestamp)
-
-            # Create the FileUpload instance
-            file_upload = FileUpload(
-                file_path=file_path,
-                object_name=object_name,
-                guid=guid,
-                instance_uid=instance_uid,
-                priority=priority,
-                status='queued',
-                timestamp=timestamp
-            )
-            logging.info(file_upload)  
-            file_upload.save()
-            logging.debug(f"Added file to queue: {file_path}")
+            logging.debug(f"New file detected to queue: {guid}")
+            if not FileUpload.objects.filter(file_path=file_path).exists():
+                file_upload = FileUpload(
+                    file_path=file_path,
+                    object_name=object_name,
+                    guid=guid,
+                    instance_uid=instance_uid,
+                    priority=priority,
+                    status='queued',
+                    timestamp=timestamp
+                )
+                file_upload.save()
+                logging.debug(f"Added file to queue: {file_path}")
+            else:
+                logging.debug(f"File {file_path} already exists in the queue.")
 
 
 def start_watcher(extension, queue_name):

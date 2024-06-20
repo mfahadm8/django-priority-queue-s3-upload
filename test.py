@@ -1,5 +1,6 @@
 import websocket
 import json
+
 def on_message(ws, message):
     print("Received:", message)
 
@@ -11,11 +12,12 @@ def on_close(ws, close_status_code, close_msg):
 
 def on_open(ws):
     print("Connection established")
-    ws.send(json.dumps({"message": "Test message"}))
+    # Sending a message containing the guid to query the file upload status and progress
+    ws.send(json.dumps({"guid": "dummy_file.zip"}))
 
 if __name__ == "__main__":
     websocket.enableTrace(True)
-    ws = websocket.WebSocketApp("ws://localhost:8000/ws/progress/",
+    ws = websocket.WebSocketApp("ws://0.0.0.0:8001/ws/progress/",
                                 on_message=on_message,
                                 on_error=on_error,
                                 on_close=on_close)
