@@ -40,11 +40,14 @@ services:
 
 
   worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: file_uploader
     depends_on:
       - rabbitmq
       - web
-    command: celery -A file_uploader worker --concurrency=5 --loglevel=DEBUG
+    command: celery -A file_uploader worker --concurrency=5 --loglevel=INFO
     ports:
       - 6900:6900
       - 6899:6899

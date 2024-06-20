@@ -7,10 +7,8 @@ from boto3.s3.transfer import S3Transfer, TransferConfig
 import logging
 from django.apps import apps
 from django.conf import settings
-# from celery.contrib import rdb
-# rdb.set_trace()
 
-logging.getLogger().setLevel(logging.DEBUG)
+logging.getLogger().setLevel(logging.INFO)
 
 # Ensure Django settings are configured
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'your_project.settings')
@@ -27,16 +25,19 @@ class ProgressPercentage:
         self._size = size
         self._seen_so_far = 0
         self._guid = guid
+        self._last_saved_progress = 0  # Track the last saved progress
 
     def __call__(self, bytes_amount):
         self._seen_so_far += bytes_amount
         percentage = (self._seen_so_far / self._size) * 100
-        logging.debug(f"Upload progress for {self._filename}: {percentage:.2f}%")
-        # Update task state
-        # current_task.update_state(state='PROGRESS', meta={'progress': percentage})
-        # Update database progress
-        FileUpload = apps.get_model('uploads', 'FileUpload')
-        FileUpload.objects.filter(guid=self._guid).update(progress=percentage)
+        logging.info(f"Upload progress for {self._filename}: {percentage:.2f}%")
+
+        # Randomly decide whether to update the progress
+        if percentage - self._last_saved_progress >= 3.0:  # Only update if 3% or more has been uploaded
+            # Update database progress
+            FileUpload = apps.get_model('uploads', 'FileUpload')
+            FileUpload.objects.filter(guid=self._guid).update(progress=percentage)
+            self._last_saved_progress = percentage  # Update the last saved progress
 
 def upload_file(file_path, object_name, guid):
     file_size = os.path.getsize(file_path)
@@ -54,7 +55,7 @@ def process_file_upload(file_path, object_name, guid):
         logging.info(object_name)
         upload_file(file_path, object_name, guid)
         FileUpload = apps.get_model('uploads', 'FileUpload')
-        FileUpload.objects.filter(guid=guid).update(status='completed',progress=100)
+        FileUpload.objects.filter(guid=guid).update(status='completed', progress=100)
         if file_path.endswith('.json'):
             # Handle post-upload for json files if needed
             pass

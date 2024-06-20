@@ -2,13 +2,13 @@ import logging
 from django.apps import AppConfig
 import threading
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 class UploadsConfig(AppConfig):
     name = 'uploads'
 
     def ready(self):
-        logging.debug("UploadsConfig is ready.")
+        logging.info("UploadsConfig is ready.")
 
         def start_all():
             from .observers import start_observers, start_queue_processors

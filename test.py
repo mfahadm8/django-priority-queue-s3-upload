@@ -12,14 +12,14 @@ def on_close(ws, close_status_code, close_msg):
 
 def on_open(ws):
     print("Connection established")
-    # Sending a message containing the guid to query the file upload status and progress
     ws.send(json.dumps({"guid": "dummy_file.zip"}))
 
 if __name__ == "__main__":
+    guid = "dummy_file.zip"
     websocket.enableTrace(True)
-    ws = websocket.WebSocketApp("ws://localhost:8001/ws/progress/",
-                                on_message = on_message,
-                                on_error = on_error,
-                                on_close = on_close)
+    ws = websocket.WebSocketApp(f"ws://localhost:8001/ws/progress/{guid}/",
+                                on_message=on_message,
+                                on_error=on_error,
+                                on_close=on_close)
     ws.on_open = on_open
     ws.run_forever()
