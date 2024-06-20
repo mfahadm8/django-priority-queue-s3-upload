@@ -1,6 +1,10 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
 import json
 from django.apps import apps
+import logging
+from channels.db import database_sync_to_async
+
+logging.getLogger().setLevel(logging.INFO)
 
 class UploadProgressConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -10,10 +14,10 @@ class UploadProgressConsumer(AsyncWebsocketConsumer):
         pass
 
     async def receive(self, text_data):
+        logging.info(text_data)
         text_data_json = json.loads(text_data)
         guid = text_data_json['guid']
 
-        # Fetch the file upload instance
         FileUpload = self.file_upload_model
         try:
             file_upload = await self.get_file_upload(guid)
@@ -35,7 +39,5 @@ class UploadProgressConsumer(AsyncWebsocketConsumer):
         return apps.get_model('uploads', 'FileUpload')
 
     async def get_file_upload(self, guid):
-        # Asynchronous call to get the file upload instance
         FileUpload = self.file_upload_model
         return await database_sync_to_async(FileUpload.objects.get)(guid=guid)
-

@@ -38,8 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'uploads',
-    'django_rq',
     'channels',
+    'channels_postgres',
     'django_pdb',
     'django_celery_results',
 ]
@@ -76,22 +76,20 @@ WSGI_APPLICATION = 'file_uploader.wsgi.application'
 
 ASGI_APPLICATION = "file_uploader.asgi.application"
 CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [("redis", 6379)],
+    'default': {
+        'BACKEND': 'channels_postgres.core.PostgresChannelLayer',
+        'CONFIG': {
+            'database': {
+                'NAME': os.environ.get("POSTGRES_DB"),
+                'USER': os.environ.get("POSTGRES_USER"),
+                'PASSWORD': os.environ.get("POSTGRES_PASSWORD"),
+                'HOST': os.environ.get("POSTGRES_HOST"),
+                'PORT': os.environ.get("POSTGRES_PORT", 5432),
+            },
         },
     },
 }
 
-RQ_QUEUES = {
-    'default': {
-        'HOST': '0.0.0.0',
-        'PORT': 6379,
-        'DB': 0,
-        'DEFAULT_TIMEOUT': 360,
-    },
-}
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
@@ -158,6 +156,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 broker_url = os.environ.get("CELERY_BROKER_URL")
+CELERY_BROKER_URL = broker_url
 result_backend = None
 task_acks_late = True
 worker_prefetch_multiplier = 1
