@@ -1,6 +1,7 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 import json
+import asyncio
 
 class UploadProgressConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -12,20 +13,23 @@ class UploadProgressConsumer(AsyncWebsocketConsumer):
 
     async def receive(self, text_data):
         text_data_json = json.loads(text_data)
-        try:
-            file_upload = await self.get_file_upload(self.guid)
-            response = {
-                'guid': self.guid,
-                'status': file_upload.status,
-                'progress': file_upload.progress
-            }
-        except self.file_upload_model.DoesNotExist:
-            response = {
-                'error': 'File not found',
-                'guid': self.guid 
-            }
 
-        await self.send(text_data=json.dumps(response))
+        while True:
+            try:
+                file_upload = await self.get_file_upload(self.guid)
+                response = {
+                    'guid': self.guid,
+                    'status': file_upload.status,
+                    'progress': file_upload.progress
+                }
+            except self.file_upload_model.DoesNotExist:
+                response = {
+                    'error': 'File not found',
+                    'guid': self.guid 
+                }
+
+            await self.send(text_data=json.dumps(response))
+            await asyncio.sleep(10)  # Use asyncio.sleep for non-blocking sleep
 
     @database_sync_to_async
     def get_file_upload(self, guid):
