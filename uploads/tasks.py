@@ -33,11 +33,11 @@ class ProgressPercentage:
     def __call__(self, bytes_amount):
         self._seen_so_far += bytes_amount
         percentage = (self._seen_so_far / self._size) * 100
-        logger.info(f"Upload progress for {self._filename}: {percentage:.2f}%")
-
         if percentage - self._last_saved_progress >= 3.0:
             FileUpload = apps.get_model('uploads', 'FileUpload')
-            FileUpload.objects.filter(guid=self._guid).update(progress=percentage)
+            file_upload = FileUpload.objects.get(guid=self._guid)
+            file_upload.progress = percentage
+            file_upload.save(update_fields=['progress'])
             logger.info(f"Updated progress for {self._guid}: {percentage:.2f}%")
             self._last_saved_progress = percentage
 
@@ -60,7 +60,10 @@ def process_file_upload(file_path, object_name, guid):
         logger.info(f"Processing file: {object_name}")
         upload_file(file_path, object_name, guid)
         FileUpload = apps.get_model('uploads', 'FileUpload')
-        FileUpload.objects.filter(guid=guid).update(status='completed', progress=100)
+        file_upload = FileUpload.objects.get(guid=guid)
+        file_upload.status = 'completed'
+        file_upload.progress = 100
+        file_upload.save(update_fields=['status', 'progress'])
         if file_path.endswith('.json'):
             pass
         elif file_path.endswith('.zip'):
@@ -69,7 +72,9 @@ def process_file_upload(file_path, object_name, guid):
     except Exception as e:
         logger.error(f"Error uploading {file_path}: {e}")
         FileUpload = apps.get_model('uploads', 'FileUpload')
-        FileUpload.objects.filter(guid=guid).update(status='failed')
+        file_upload = FileUpload.objects.get(guid=guid)
+        file_upload.status = 'failed'
+        file_upload.save(update_fields=['status'])
         return {'status': 'failed', 'error': str(e)}
 
 def process_queue(queue_name):
@@ -89,7 +94,7 @@ def process_queue(queue_name):
                     logger.info(f"Uploading file: {object_name}")
 
                     file_upload.status = 'uploading'
-                    file_upload.save()
+                    file_upload.save(update_fields=['status'])
 
                     process_file_upload.delay(file_path, object_name, guid)
             else:

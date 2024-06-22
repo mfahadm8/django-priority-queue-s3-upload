@@ -41,7 +41,8 @@ class UploadProgressConsumer(AsyncWebsocketConsumer):
 
     def create_signal_handler(self):
         @receiver(post_save, sender=self.file_upload_model)
-        def handle_file_upload_save(sender, instance, **kwargs):
+        def handle_file_upload_save(sender, instance,created, **kwargs):
+            
             if instance.guid == self.guid:
                 response = {
                     'guid': instance.guid,

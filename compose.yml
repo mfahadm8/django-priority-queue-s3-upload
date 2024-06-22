@@ -8,7 +8,7 @@ services:
       - "8001:8000"
     command:  python -m uvicorn file_uploader.asgi:application --host 0.0.0.0 --port 8000 --reload
     volumes:
-      - .:/opt/file_uploader
+      - .:/app/
       - /home/ubuntu/.aws/:/root/.aws/:ro
       - /tmp/test:/tmp/test
     environment:
@@ -52,7 +52,7 @@ services:
       - 6900:6900
       - 6899:6899
     volumes:
-      - .:/opt/file_uploader
+      - .:/app/
       - /home/ubuntu/.aws/:/root/.aws/:ro
       - /tmp/test:/tmp/test
     environment:
