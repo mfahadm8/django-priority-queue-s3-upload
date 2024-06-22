@@ -8,7 +8,8 @@ import logging
 from django.apps import apps
 from django.conf import settings
 
-logging.getLogger().setLevel(logging.INFO)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'your_project.settings')
 import django
@@ -32,11 +33,12 @@ class ProgressPercentage:
     def __call__(self, bytes_amount):
         self._seen_so_far += bytes_amount
         percentage = (self._seen_so_far / self._size) * 100
-        logging.info(f"Upload progress for {self._filename}: {percentage:.2f}%")
+        logger.info(f"Upload progress for {self._filename}: {percentage:.2f}%")
 
         if percentage - self._last_saved_progress >= 3.0:
             FileUpload = apps.get_model('uploads', 'FileUpload')
             FileUpload.objects.filter(guid=self._guid).update(progress=percentage)
+            logger.info(f"Updated progress for {self._guid}: {percentage:.2f}%")
             self._last_saved_progress = percentage
 
 def upload_file(file_path, object_name, guid):
@@ -54,8 +56,8 @@ def upload_file(file_path, object_name, guid):
 @app.task(time_limit=10800)
 def process_file_upload(file_path, object_name, guid):
     try:
-        logging.info("worker 1")
-        logging.info(object_name)
+        logger.info("Worker started")
+        logger.info(f"Processing file: {object_name}")
         upload_file(file_path, object_name, guid)
         FileUpload = apps.get_model('uploads', 'FileUpload')
         FileUpload.objects.filter(guid=guid).update(status='completed', progress=100)
@@ -65,7 +67,7 @@ def process_file_upload(file_path, object_name, guid):
             pass
         return {'status': 'completed'}
     except Exception as e:
-        logging.error(f"Error uploading {file_path}: {e}")
+        logger.error(f"Error uploading {file_path}: {e}")
         FileUpload = apps.get_model('uploads', 'FileUpload')
         FileUpload.objects.filter(guid=guid).update(status='failed')
         return {'status': 'failed', 'error': str(e)}
@@ -73,27 +75,24 @@ def process_file_upload(file_path, object_name, guid):
 def process_queue(queue_name):
     while True:
         try:
-            logging.info("in here")
+            logger.info("Processing queue")
             FileUpload = apps.get_model('uploads', 'FileUpload')
             uploading_tasks = FileUpload.objects.filter(status='uploading').count()
             if uploading_tasks < MAX_UPLOADS:
                 file_uploads = FileUpload.objects.filter(status='queued').order_by('-priority', 'timestamp')[:1]
-                logging.info("in here 1.5")
-                logging.info(file_uploads)
+                logger.info(f"Found queued files: {file_uploads}")
                 if file_uploads:
                     file_upload = file_uploads[0]
                     file_path = file_upload.file_path
                     object_name = file_upload.object_name
                     guid = file_upload.guid
-                    logging.info("in here 2")
-                    logging.info(object_name)
+                    logger.info(f"Uploading file: {object_name}")
 
                     file_upload.status = 'uploading'
                     file_upload.save()
 
                     process_file_upload.delay(file_path, object_name, guid)
             else:
-                # Check if any uploads need to be paused or canceled
                 for guid, task in upload_tasks.items():
                     file_upload = FileUpload.objects.get(guid=guid)
                     if file_upload.status == 'paused' or file_upload.status == 'canceled':
@@ -103,5 +102,5 @@ def process_queue(queue_name):
 
             time.sleep(5)
         except Exception as e:
-            logging.error(f"Error processing queue {queue_name}: {e}")
+            logger.error(f"Error processing queue {queue_name}: {e}")
             time.sleep(5)

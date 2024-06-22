@@ -1,7 +1,7 @@
 import requests
 
 # Set the base URL for your API
-BASE_URL = 'http://127.0.0.1:8000/file_uploads'
+BASE_URL = 'http://127.0.0.1:8001/uploads'
 
 # Define the GUID and file information
 guid = 'dummy_file.zip'
