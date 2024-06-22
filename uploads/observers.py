@@ -11,7 +11,7 @@ from .serializers import FileUploadSerializer
 
 WATCHED_DIR = '/tmp/test'
 STABILITY_CHECK_INTERVAL = 5  
-STABILITY_THRESHOLD = 3 
+STABILITY_THRESHOLD = 3  
 
 logging.basicConfig(level=logging.INFO)
 
@@ -29,20 +29,23 @@ class FileCreationHandler(FileSystemEventHandler):
         timestamp = time.time()
         priority = int(timestamp)
         logging.info(f"New file detected to queue: {guid}")
-        if not FileUpload.objects.filter(file_path=file_path).exists():
-            file_upload = FileUpload(
-                file_path=file_path,
-                object_name=object_name,
-                guid=guid,
-                instance_uid=instance_uid,
-                priority=priority,
-                status='queued',
-                timestamp=timestamp
-            )
-            file_upload.save()
-            logging.info(f"Added file to queue: {file_path}")
-        else:
-            logging.info(f"File {file_path} already exists in the queue.")
+        try:
+            if not FileUpload.objects.filter(file_path=file_path).exists():
+                file_upload = FileUpload(
+                    file_path=file_path,
+                    object_name=object_name,
+                    guid=guid,
+                    instance_uid=instance_uid,
+                    priority=priority,
+                    status='queued',
+                    timestamp=timestamp
+                )
+                file_upload.save()
+                logging.info(f"Added file to queue: {file_path}")
+            else:
+                logging.info(f"File {file_path} already exists in the queue.")
+        except Exception as e:
+            logging.error(f"Error processing file {file_path}: {e}")
 
     def is_file_stable(self, file_path):
         previous_size = -1
@@ -56,8 +59,9 @@ class FileCreationHandler(FileSystemEventHandler):
                 stable_count = 0
             previous_size = current_size
             time.sleep(STABILITY_CHECK_INTERVAL)
-            logging.info(f"Yet to reach stabilty")
+            logging.info(f"Checking file stability: {file_path}")
 
+        logging.info(f"File is stable: {file_path}")
         return True
 
 def start_watcher(extension, queue_name):
@@ -73,9 +77,10 @@ def start_watcher(extension, queue_name):
     return observer
 
 def start_observers():
-    observers = []
-    observers.append(start_watcher('.json', 'upload_queue_json'))
-    observers.append(start_watcher('.zip', 'upload_queue_zip'))
+    observers = [
+        start_watcher('.json', 'upload_queue_json'),
+        start_watcher('.zip', 'upload_queue_zip')
+    ]
 
     try:
         while True:
@@ -95,5 +100,3 @@ def start_queue_processors():
     zip_thread = threading.Thread(target=process_queue, args=('upload_queue_zip',))
     zip_thread.daemon = True
     zip_thread.start()
-
-

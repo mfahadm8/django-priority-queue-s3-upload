@@ -18,8 +18,20 @@ class FileUploadViewSet(viewsets.ModelViewSet):
             priority = serializer.validated_data['priority']
             try:
                 file_upload = FileUpload.objects.get(guid=guid)
+                old_priority = file_upload.priority
                 file_upload.priority = priority
                 file_upload.save()
+
+                # Adjust priorities if necessary
+                if priority <= MAX_UPLOADS:
+                    if file_upload.status == 'paused':
+                        file_upload.status = 'queued'
+                        file_upload.save()
+                else:
+                    if file_upload.status == 'uploading':
+                        file_upload.status = 'paused'
+                        file_upload.save()
+                
                 return Response({'status': 'priority updated'})
             except FileUpload.DoesNotExist:
                 return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -33,7 +45,16 @@ class FileUploadViewSet(viewsets.ModelViewSet):
             status = serializer.validated_data['status']
             try:
                 file_upload = FileUpload.objects.get(guid=guid)
-                file_upload.status = status
+                if status == 'paused':
+                    last_item = FileUpload.objects.filter(status='queued').order_by('priority').last()
+                    if last_item:
+                        file_upload.priority, last_item.priority = last_item.priority, file_upload.priority
+                        last_item.save()
+                    file_upload.status = 'paused'
+                elif status == 'resume':
+                    file_upload.status = 'queued'
+                elif status == 'cancel':
+                    file_upload.status = 'canceled'
                 file_upload.save()
                 return Response({'status': 'status updated'})
             except FileUpload.DoesNotExist:
