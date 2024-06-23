@@ -7,7 +7,7 @@ from boto3.s3.transfer import S3Transfer, TransferConfig
 import logging
 from django.apps import apps
 from django.conf import settings
-
+import traceback
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -37,6 +37,14 @@ class ProgressPercentage:
             file_upload = FileUpload.objects.get(guid=self._guid)
             file_upload.progress = percentage
             file_upload.save(update_fields=['progress'])
+            try:
+                if file_upload.status == 'paused' or file_upload.status == 'canceled':
+                    task=upload_tasks[self._guid]
+                    task.pause()
+                    if file_upload.status == 'canceled':
+                        del upload_tasks[self._guid]
+            except:
+                logger.error(traceback.format_exc())
             logger.info(f"Updated progress for {self._guid}: {percentage:.2f}%")
             self._last_saved_progress = percentage
 
