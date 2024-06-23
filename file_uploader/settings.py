@@ -1,3 +1,4 @@
+# file_uploader/settings.py
 """
 Django settings for file_uploader project.
 
@@ -15,7 +16,6 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
@@ -26,7 +26,6 @@ SECRET_KEY = 'django-insecure-^c)*u0o^b8945m_dpow@tr^_@+*ew6$+-ag=6=bm&pgxvh=$21
 DEBUG = True
 
 ALLOWED_HOSTS = []
-
 
 # Application definition
 
@@ -39,7 +38,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'uploads',
     'channels',
-    'channels_postgres',
     'django_pdb',
     'django_celery_results',
 ]
@@ -73,41 +71,32 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'file_uploader.wsgi.application'
+ASGI_APPLICATION = 'file_uploader.asgi.application'
 
-ASGI_APPLICATION = "file_uploader.asgi.application"
-CHANNEL_LAYERS = {
+# Redis configurations
+REDIS_HOST = 'redis'
+REDIS_PORT = 6379
+
+# Configure Django to use Redis for caching
+CACHES = {
     'default': {
-        'BACKEND': 'channels_postgres.core.PostgresChannelLayer',
-        'CONFIG': {
-            'database': {
-                'NAME': os.environ.get("POSTGRES_DB"),
-                'USER': os.environ.get("POSTGRES_USER"),
-                'PASSWORD': os.environ.get("POSTGRES_PASSWORD"),
-                'HOST': os.environ.get("POSTGRES_HOST"),
-                'PORT': os.environ.get("POSTGRES_PORT", 5432),
-            },
-        },
-    },
-}
-
-
-# Database
-# https://docs.djangoproject.com/en/3.2/ref/settings/#databases
-
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get("POSTGRES_DB"),
-        'USER': os.environ.get("POSTGRES_USER"),
-        'PASSWORD': os.environ.get("POSTGRES_PASSWORD"),
-        'HOST': os.environ.get("POSTGRES_HOST"),
-        'PORT': os.environ.get("POSTGRES_PORT",5432), 
-        'CONN_MAX_AGE': 500
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': f'redis://{REDIS_HOST}:{REDIS_PORT}/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
     }
 }
 
-
+# Channels layer backend configuration for Redis
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [(REDIS_HOST, REDIS_PORT)],
+        },
+    },
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators
@@ -152,9 +141,10 @@ STATIC_URL = '/static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-
+# Maximum number of concurrent uploads
 MAX_UPLOADS=os.cpu_count() or 2
 
+# Celery settings
 broker_url = os.environ.get("CELERY_BROKER_URL")
 CELERY_BROKER_URL = broker_url
 result_backend = None

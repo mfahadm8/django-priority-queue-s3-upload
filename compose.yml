@@ -28,15 +28,20 @@ services:
       - 5672:5672
       - 15672:15672
 
-  db:
-    image: postgres:13-alpine
-    environment:
-      POSTGRES_PORT: $DB_PORT
-      POSTGRES_DB: $DB_NAME
-      POSTGRES_USER: $DB_USER
-      POSTGRES_PASSWORD: $DB_PWD
+  # db:
+  #   image: postgres:13-alpine
+  #   environment:
+  #     POSTGRES_PORT: $DB_PORT
+  #     POSTGRES_DB: $DB_NAME
+  #     POSTGRES_USER: $DB_USER
+  #     POSTGRES_PASSWORD: $DB_PWD
+  #   ports:
+  #     - 5432:5432
+
+  redis:
+    image: redis:latest
     ports:
-      - 5432:5432
+      - 6379:6379
 
 
   worker:

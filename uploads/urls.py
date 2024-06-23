@@ -5,7 +5,7 @@ from rest_framework.routers import DefaultRouter
 from .views import FileUploadViewSet
 
 router = DefaultRouter()
-router.register(r'file_uploads', FileUploadViewSet)
+router.register(r'file_uploads', FileUploadViewSet, basename='file_uploads')
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -1,17 +1,17 @@
+# uploads/observers.py
+
 import os
 import logging
 import time
 import threading
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from rest_framework.renderers import JSONRenderer
 from .tasks import process_queue
 from .models import FileUpload
-from .serializers import FileUploadSerializer
 
 WATCHED_DIR = '/tmp/test'
-STABILITY_CHECK_INTERVAL = 5  
-STABILITY_THRESHOLD = 3  
+STABILITY_CHECK_INTERVAL = 2
+STABILITY_THRESHOLD = 2
 
 logging.basicConfig(level=logging.INFO)
 
@@ -30,15 +30,14 @@ class FileCreationHandler(FileSystemEventHandler):
         priority = int(timestamp)
         logging.info(f"New file detected to queue: {guid}")
         try:
-            if not FileUpload.objects.filter(file_path=file_path).exists():
+            if not FileUpload.exists(guid):
                 file_upload = FileUpload(
                     file_path=file_path,
                     object_name=object_name,
                     guid=guid,
                     instance_uid=instance_uid,
                     priority=priority,
-                    status='queued',
-                    timestamp=timestamp
+                    status='queued'
                 )
                 file_upload.save()
                 logging.info(f"Added file to queue: {file_path}")

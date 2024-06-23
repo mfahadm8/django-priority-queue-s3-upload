@@ -1,56 +1,45 @@
+# uploads/consumers.py
 from channels.generic.websocket import AsyncWebsocketConsumer
-from channels.db import database_sync_to_async
 import json
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-from django.apps import apps
-from asgiref.sync import async_to_sync
+import aioredis
 import logging
+from .models import FileUpload
 
 logger = logging.getLogger(__name__)
 
 class UploadProgressConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.guid = self.scope['url_route']['kwargs']['guid']
+        self.redis = await aioredis.create_redis_pool('redis://localhost:6379')
         await self.accept()
         logger.info(f"WebSocket connection accepted for GUID: {self.guid}")
 
-        # Start listening to database updates
         await self.start_listening()
 
     async def disconnect(self, close_code):
-        # Stop listening to database updates
         await self.stop_listening()
+        self.redis.close()
+        await self.redis.wait_closed()
         logger.info(f"WebSocket connection closed for GUID: {self.guid}")
 
     async def receive(self, text_data):
-        pass  # No need to handle messages from the client
-
-    @property
-    def file_upload_model(self):
-        return apps.get_model('uploads', 'FileUpload')
+        pass
 
     async def start_listening(self):
-        self.signal_handler = self.create_signal_handler()
-        post_save.connect(self.signal_handler, sender=self.file_upload_model)
-        logger.info(f"Started listening to database updates for GUID: {self.guid}")
+        self.pubsub_channel = f"upload_progress_{self.guid}"
+        await self.redis.subscribe(self.pubsub_channel)
+        self.listener_task = self.channel_layer.loop.create_task(self.listen_to_redis())
+        logger.info(f"Subscribed to Redis channel for GUID: {self.guid}")
 
     async def stop_listening(self):
-        post_save.disconnect(self.signal_handler, sender=self.file_upload_model)
-        logger.info(f"Stopped listening to database updates for GUID: {self.guid}")
+        await self.redis.unsubscribe(self.pubsub_channel)
+        if self.listener_task:
+            self.listener_task.cancel()
+            logger.info(f"Unsubscribed from Redis channel for GUID: {self.guid}")
 
-    def create_signal_handler(self):
-        @receiver(post_save, sender=self.file_upload_model)
-        def handle_file_upload_save(sender, instance,created, **kwargs):
-            
-            if instance.guid == self.guid:
-                response = {
-                    'guid': instance.guid,
-                    'status': instance.status,
-                    'progress': instance.progress
-                }
-                logger.info(f"Database update received for GUID: {self.guid} - Progress: {instance.progress}%")
-                # Use async_to_sync to send the message in the async context
-                async_to_sync(self.send)(text_data=json.dumps(response))
-
-        return handle_file_upload_save
+    async def listen_to_redis(self):
+        channel = self.redis.channels[self.pubsub_channel]
+        while await channel.wait_message():
+            msg = await channel.get_json()
+            await self.send(text_data=json.dumps(msg))
+            logger.info(f"Message received from Redis for GUID: {self.guid} - {msg}")
