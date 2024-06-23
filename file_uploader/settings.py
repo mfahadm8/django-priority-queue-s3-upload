@@ -153,7 +153,7 @@ STATIC_URL = '/static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-
+MAX_UPLOADS=os.cpu_count() or 2
 
 broker_url = os.environ.get("CELERY_BROKER_URL")
 CELERY_BROKER_URL = broker_url

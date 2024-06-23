@@ -9,7 +9,7 @@ class FileUpload(models.Model):
     instance_uid = models.CharField(max_length=255)
     priority = models.IntegerField(default=0)
     status = models.CharField(max_length=20, default='queued')  # 'queued', 'uploading', 'paused', 'completed', 'canceled'
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now=True)
     updated_at = models.DateTimeField(auto_now=True)
     timestamp = models.FloatField()
     progress = models.FloatField(default=0)

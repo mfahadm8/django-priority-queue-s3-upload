@@ -8,6 +8,7 @@ import logging
 from django.apps import apps
 from django.conf import settings
 
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -17,8 +18,6 @@ django.setup()
 
 s3_client = boto3.client('s3')
 BUCKET_NAME = 'cdk-hnb659fds-assets-182426352951-ap-southeast-1'
-MAX_UPLOADS = os.cpu_count() or 2
-
 # Dictionary to hold upload tasks
 upload_tasks = {}
 
@@ -83,7 +82,7 @@ def process_queue(queue_name):
             logger.info("Processing queue")
             FileUpload = apps.get_model('uploads', 'FileUpload')
             uploading_tasks = FileUpload.objects.filter(status='uploading').count()
-            if uploading_tasks < MAX_UPLOADS:
+            if uploading_tasks < settings.MAX_UPLOADS:
                 file_uploads = FileUpload.objects.filter(status='queued').order_by('-priority', 'timestamp')[:1]
                 logger.info(f"Found queued files: {file_uploads}")
                 if file_uploads:
