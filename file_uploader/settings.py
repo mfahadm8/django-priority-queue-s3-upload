@@ -152,3 +152,10 @@ task_acks_late = True
 worker_prefetch_multiplier = 1
 broker_connection_retry_on_startup = True 
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+CELERY_BEAT_SCHEDULE = {
+    'process-queue-every-5-seconds': {
+        'task': 'uploads.tasks.process_queue',
+        'schedule': 5.0,
+    },
+}

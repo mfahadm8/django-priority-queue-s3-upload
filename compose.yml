@@ -12,11 +12,7 @@ services:
       - /home/ubuntu/.aws/:/root/.aws/:ro
       - /tmp/test:/tmp/test
     environment:
-      POSTGRES_PORT: $DB_PORT
-      POSTGRES_DB: $DB_NAME
-      POSTGRES_USER: $DB_USER
-      POSTGRES_PASSWORD: $DB_PWD
-      POSTGRES_HOST: $DB_HOST
+      START_FILE_WATCHER: True
       DJANGO_SETTINGS_MODULE: file_uploader.settings
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672/
 
@@ -61,10 +57,5 @@ services:
       - /home/ubuntu/.aws/:/root/.aws/:ro
       - /tmp/test:/tmp/test
     environment:
-      POSTGRES_PORT: $DB_PORT
-      POSTGRES_DB: $DB_NAME
-      POSTGRES_USER: $DB_USER
-      POSTGRES_PASSWORD: $DB_PWD
-      POSTGRES_HOST: $DB_HOST
       DJANGO_SETTINGS_MODULE: file_uploader.settings
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672/

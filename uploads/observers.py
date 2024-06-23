@@ -1,12 +1,8 @@
-# uploads/observers.py
-
 import os
 import logging
 import time
-import threading
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from .tasks import process_queue
 from .models import FileUpload
 
 WATCHED_DIR = '/tmp/test'
@@ -89,13 +85,3 @@ def start_observers():
             observer.stop()
         for observer in observers:
             observer.join()
-
-def start_queue_processors():
-    logging.info("Starting queue processors.")
-    json_thread = threading.Thread(target=process_queue, args=('upload_queue_json',))
-    json_thread.daemon = True
-    json_thread.start()
-
-    zip_thread = threading.Thread(target=process_queue, args=('upload_queue_zip',))
-    zip_thread.daemon = True
-    zip_thread.start()

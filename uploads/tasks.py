@@ -1,8 +1,6 @@
-# uploads/tasks.py
-
 import os
 import boto3
-from celery import shared_task
+from celery import shared_task, Celery
 import time
 from boto3.s3.transfer import S3Transfer, TransferConfig
 import logging
@@ -10,6 +8,7 @@ from django.conf import settings
 from .models import FileUpload
 from django.core.cache import cache
 import traceback
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -63,36 +62,34 @@ def process_file_upload(file_path, object_name, guid):
         file_upload.save()
         return {'status': 'failed', 'error': str(e)}
 
-def process_queue(queue_name):
-    while True:
-        try:
-            logger.info("Processing queue")
-            uploading_tasks = len(FileUpload.filter(status='uploading'))
-            if uploading_tasks < settings.MAX_UPLOADS:
-                file_uploads = sorted(FileUpload.filter(status='queued'), key=lambda x: (-x.priority, x.timestamp))[:1]
-                logger.info("Uploading files: "+str(uploading_tasks))
-                if file_uploads:
-                    file_upload = file_uploads[0]
-                    file_path = file_upload.file_path
-                    object_name = file_upload.object_name
-                    guid = file_upload.guid
-                    logger.info(f"Uploading file: {object_name}")
-                    file_upload.status = 'uploading'
-                    file_upload.save()
+@shared_task
+def process_queue():
+    try:
+        logger.info("Processing queue")
+        uploading_tasks = len(FileUpload.filter(status='uploading'))
+        if uploading_tasks < settings.MAX_UPLOADS:
+            file_uploads = sorted(FileUpload.filter(status='queued'), key=lambda x: (-x.priority, x.timestamp))[:1]
+            logger.info("Uploading files: " + str(uploading_tasks))
+            if file_uploads:
+                file_upload = file_uploads[0]
+                file_path = file_upload.file_path
+                object_name = file_upload.object_name
+                guid = file_upload.guid
+                logger.info(f"Uploading file: {object_name}")
+                file_upload.status = 'uploading'
+                file_upload.save()
 
-                    process_file_upload.delay(file_path, object_name, guid)
-            else:
-                for key in cache.scan_iter("upload_task_*"):
-                    task = cache.get(key)
-                    if task:
-                        file_upload = FileUpload.get(key.split('_')[-1])
-                        if file_upload and (file_upload.status == 'paused' or file_upload.status == 'canceled'):
-                            task.pause()
-                            if file_upload.status == 'canceled':
-                                cache.delete(key)
+                process_file_upload.delay(file_path, object_name, guid)
+        else:
+            for key in cache.scan_iter("upload_task_*"):
+                task = cache.get(key)
+                if task:
+                    file_upload = FileUpload.get(key.split('_')[-1])
+                    if file_upload and (file_upload.status == 'paused' or file_upload.status == 'canceled'):
+                        task.pause()
+                        if file_upload.status == 'canceled':
+                            cache.delete(key)
 
-            time.sleep(5)
-        except Exception as e:
-            logger.error(f"Error processing queue {queue_name}: {e}")
-            logger.error(traceback.format_exc())
-            time.sleep(5)
+    except Exception as e:
+        logger.error(f"Error processing queue: {e}")
+        logger.error(traceback.format_exc())
