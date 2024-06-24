@@ -1,9 +1,7 @@
 # uploads/tasks.py
 import os
 import boto3
-from celery import shared_task, Celery
-import time
-from boto3.s3.transfer import S3Transfer, TransferConfig
+from celery import shared_task
 import logging
 from django.conf import settings
 from .models import FileUpload
@@ -82,7 +80,7 @@ class S3MultipartUpload:
 
     def update_progress(self, part_number):
         progress = (part_number * self.part_bytes / self.total_bytes) * 100
-        file_upload = FileUpload.get(self.guid)
+        file_upload = FileUpload.get(self.guid, use_task_key=True)
         file_upload.progress = progress
         file_upload.save()
         task_status_key = f'upload_task_{self.guid}'
@@ -90,13 +88,12 @@ class S3MultipartUpload:
         if not task_guid:
             raise Exception("Upload paused")
 
-
 @shared_task(time_limit=10800)
 def process_file_upload(file_path, object_name, guid):
     try:
         file_upload = FileUpload.get(guid)
         file_upload.status = 'uploading'
-        file_upload.save()
+        file_upload.save(use_task_key=True)
 
         mpu = S3MultipartUpload(BUCKET_NAME, object_name, file_path, guid)
         task_status_key = f'upload_task_{guid}'

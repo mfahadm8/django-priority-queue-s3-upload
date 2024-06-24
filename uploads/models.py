@@ -14,14 +14,13 @@ class FileUpload:
         self.timestamp = timestamp or time.time()
         self.progress = progress
 
-    def save(self):
+    def save(self, use_task_key=False):
         self.updated_at = time.time()
         cache.set(self.guid, self.to_dict(), timeout=None)
-        if self.status == 'uploading':
+        if use_task_key or self.status == 'uploading':
             cache.set(f'upload_task_{self.guid}', self.to_dict(), timeout=None)
         elif self.status in ['paused', 'canceled']:
             cache.delete(f'upload_task_{self.guid}')
-
 
     def to_dict(self):
         return {
@@ -38,23 +37,36 @@ class FileUpload:
         }
 
     @classmethod
-    def get(cls, guid):
-        data = cache.get(guid)
+    def get(cls, guid, use_task_key=False):
+        key = f'upload_task_{guid}' if use_task_key else guid
+        data = cache.get(key)
         if data:
             return cls(**data)
         return None
 
     @classmethod
     def filter(cls, **kwargs):
-        # For simplicity, assuming we're only filtering by status and getting all items from cache
         all_keys = cache.keys('*')
         results = []
         for key in all_keys:
             data = cache.get(key)
-            if data and all(data.get(k) == v for k, v in kwargs.items()):
+            if isinstance(data, dict) and all(data.get(k) == v for k, v in kwargs.items()):
                 results.append(cls(**data))
         return results
 
     @classmethod
-    def exists(cls, guid):
-        return cache.get(guid) is not None
+    def exists(cls, guid, use_task_key=False):
+        key = f'upload_task_{guid}' if use_task_key else guid
+        return cache.get(key) is not None
+
+    @classmethod
+    def all(cls):
+        all_keys = cache.keys('*')
+        results = [cache.get(key) for key in all_keys if cache.get(key)]
+        return [cls(**result) for result in results if isinstance(result, dict)]
+
+    def delete(self, use_task_key=False):
+        key = f'upload_task_{self.guid}' if use_task_key else self.guid
+        cache.delete(self.guid)
+        if use_task_key or self.status in ['paused', 'canceled']:
+            cache.delete(key)
