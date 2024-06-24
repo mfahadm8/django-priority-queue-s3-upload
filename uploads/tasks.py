@@ -1,3 +1,4 @@
+# uploads/tasks.py
 import os
 import boto3
 from celery import shared_task, Celery
@@ -15,47 +16,96 @@ logger = logging.getLogger(__name__)
 s3_client = boto3.client('s3')
 BUCKET_NAME = 'cdk-hnb659fds-assets-182426352951-ap-southeast-1'
 
-class ProgressPercentage:
-    def __init__(self, filename, size, guid):
-        self._filename = filename
-        self._size = size
-        self._seen_so_far = 0
-        self._guid = guid
-        self._last_saved_progress = 0
+class S3MultipartUpload:
+    PART_MINIMUM = int(5 * 1024 * 1024)
 
-    def __call__(self, bytes_amount):
-    
-        self._seen_so_far += bytes_amount
-        percentage = (self._seen_so_far / self._size) * 100
-        if percentage - self._last_saved_progress >= 3.0:
-            file_upload = FileUpload.get(self._guid)
-            file_upload.progress = percentage
-            file_upload.save()
-            logger.info(f"Updated progress for {self._guid}: {percentage:.2f}%")
-            self._last_saved_progress = percentage
+    def __init__(self, bucket, key, local_path, guid, part_size=int(15 * 1024 * 1024), profile_name=None, region_name="eu-east-1", verbose=False):
+        self.bucket = bucket
+        self.key = key
+        self.path = local_path
+        self.guid = guid
+        self.total_bytes = os.stat(local_path).st_size
+        self.part_bytes = part_size
+        assert part_size > self.PART_MINIMUM
+        self.s3 = boto3.session.Session().client("s3")
+        if verbose:
+            boto3.set_stream_logger(name="botocore")
 
-        task_status_key = f'upload_task_{self._guid}'
+    def get_all_parts(self, upload_id):
+        parts = self.s3.list_parts(Bucket=self.bucket, Key=self.key, UploadId=upload_id)
+        rparts = [{"PartNumber": part["PartNumber"], "ETag": part["ETag"]} for part in parts["Parts"]]
+        return rparts
+
+    def get_next_part(self, upload_id):
+        parts = self.s3.list_parts(Bucket=self.bucket, Key=self.key, UploadId=upload_id)
+        next_part_marker = parts["NextPartNumberMarker"]
+        return next_part_marker
+
+    def abort_resume(self, action):
+        mpus = self.s3.list_multipart_uploads(Bucket=self.bucket)
+        if "Uploads" in mpus:
+            for u in mpus["Uploads"]:
+                upload_id = u["UploadId"]
+                if u["Key"] != self.key:
+                    continue
+                if action == "abort":
+                    self.s3.abort_multipart_upload(Bucket=self.bucket, Key=self.key, UploadId=upload_id)
+                elif action == "resume":
+                    next_part = self.get_next_part(upload_id)
+                    new_parts = self.upload(upload_id, next_part)
+                    new_parts = self.get_all_parts(upload_id)
+                    self.complete(upload_id, new_parts)
+
+    def create(self):
+        mpu = self.s3.create_multipart_upload(Bucket=self.bucket, Key=self.key)
+        mpu_id = mpu["UploadId"]
+        return mpu_id
+
+    def upload(self, mpu_id, part_number):
+        parts = []
+        with open(self.path, "rb") as f:
+            for i in range(1, part_number):
+                f.read(self.part_bytes)
+            while True:
+                data = f.read(self.part_bytes)
+                if not len(data):
+                    break
+                part = self.s3.upload_part(Body=data, Bucket=self.bucket, Key=self.key, UploadId=mpu_id, PartNumber=part_number)
+                parts.append({"PartNumber": part_number, "ETag": part["ETag"]})
+                part_number += 1
+                self.update_progress(part_number)
+        return parts
+
+    def complete(self, mpu_id, parts):
+        result = self.s3.complete_multipart_upload(Bucket=self.bucket, Key=self.key, UploadId=mpu_id, MultipartUpload={"Parts": parts})
+        return result
+
+    def update_progress(self, part_number):
+        progress = (part_number * self.part_bytes / self.total_bytes) * 100
+        file_upload = FileUpload.get(self.guid)
+        file_upload.progress = progress
+        file_upload.save()
+        task_status_key = f'upload_task_{self.guid}'
         task_guid = cache.get(task_status_key)
         if not task_guid:
-            logger.info(f"Upload for {self._guid} has been paused. Stopping upload.")
             raise Exception("Upload paused")
-        
-def upload_file(file_path, object_name, guid):
-    file_size = os.path.getsize(file_path)
-    config = TransferConfig(multipart_threshold=1024*25, max_concurrency=10, multipart_chunksize=1024*25, use_threads=True)
-    transfer = S3Transfer(s3_client, config)
 
-    transfer.upload_file(
-        file_path, BUCKET_NAME, object_name,
-        callback=ProgressPercentage(file_path, file_size, guid)
-    )
 
 @shared_task(time_limit=10800)
 def process_file_upload(file_path, object_name, guid):
     try:
-        logger.info("Worker started")
-        logger.info(f"Processing file: {object_name}")
-        upload_file(file_path, object_name, guid)
+        file_upload = FileUpload.get(guid)
+        file_upload.status = 'uploading'
+        file_upload.save()
+
+        mpu = S3MultipartUpload(BUCKET_NAME, object_name, file_path, guid)
+        task_status_key = f'upload_task_{guid}'
+        cache.set(task_status_key, guid, timeout=None)
+
+        mpu_id = mpu.create()
+        parts = mpu.upload(mpu_id, 1)
+        mpu.complete(mpu_id, parts)
+
         file_upload = FileUpload.get(guid)
         file_upload.status = 'completed'
         file_upload.progress = 100
@@ -68,6 +118,7 @@ def process_file_upload(file_path, object_name, guid):
         file_upload.status = 'failed'
         file_upload.save()
         return {'status': 'failed', 'error': str(e)}
+
 
 @shared_task
 def process_queue():
