@@ -45,8 +45,8 @@ class FileUpload:
         return None
 
     @classmethod
-    def filter(cls, **kwargs):
-        all_keys = cache.keys('*')
+    def filter(cls, prefix='', **kwargs):
+        all_keys = cache.keys(f'{prefix}*')
         results = []
         for key in all_keys:
             data = cache.get(key)
