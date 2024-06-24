@@ -9,7 +9,7 @@ from .models import FileUpload
 from django.core.cache import cache
 import traceback
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 s3_client = boto3.client('s3')

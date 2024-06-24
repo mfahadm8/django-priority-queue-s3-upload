@@ -4,7 +4,7 @@ from celery import Celery
 from django.conf import settings
 from uploads.tasks import process_queue
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'file_uploader.settings')
+# os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'file_uploader.settings')
 
 app = Celery('file_uploader')
 app.config_from_object('django.conf:settings', namespace='CELERY')
