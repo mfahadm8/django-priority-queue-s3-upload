@@ -1,3 +1,4 @@
+# uploads/tasks.py
 import os
 import boto3
 from celery import shared_task
@@ -40,18 +41,31 @@ class S3MultipartUpload:
 
     def abort_resume(self, action):
         mpus = self.s3.list_multipart_uploads(Bucket=self.bucket)
+        upload_parts_exists = False
         if "Uploads" in mpus:
             for u in mpus["Uploads"]:
                 upload_id = u["UploadId"]
                 if u["Key"] != self.key:
                     continue
+                upload_parts_exists= True
                 if action == "abort":
                     self.s3.abort_multipart_upload(Bucket=self.bucket, Key=self.key, UploadId=upload_id)
                 elif action == "resume":
-                    next_part = self.get_next_part(upload_id)
-                    new_parts = self.upload(upload_id, next_part)
-                    new_parts = self.get_all_parts(upload_id)
-                    self.complete(upload_id, new_parts)
+                    try:
+                        next_part = self.get_next_part(upload_id)
+                        new_parts = self.upload(upload_id, next_part)
+                        new_parts = self.get_all_parts(upload_id)
+                        self.complete(upload_id, new_parts)
+                    except self.s3.exceptions.NoSuchUpload:
+                        # Multipart upload was never initiated; start a new one
+                        mpu_id = self.create()
+                        new_parts = self.upload(mpu_id, 1)
+                        self.complete(mpu_id, new_parts)
+
+        if action == "resume" and not upload_parts_exists:
+            mpu_id = self.create()
+            new_parts = self.upload(mpu_id, 1)
+            self.complete(mpu_id, new_parts)
 
     def create(self):
         mpu = self.s3.create_multipart_upload(Bucket=self.bucket, Key=self.key)
@@ -87,7 +101,7 @@ class S3MultipartUpload:
         task_status_key = f'upload_task_{self.guid}'
         task_guid = cache.get(task_status_key)
         if not task_guid:
-            # self.abort_resume("abort")
+            self.abort_resume("abort")
             raise Exception("Upload paused")
 
 @shared_task(time_limit=10800)
@@ -103,10 +117,9 @@ def process_file_upload(file_path, object_name, guid):
         task_status_key = f'upload_task_{guid}'
         cache.set(task_status_key, guid, timeout=None)
 
-        mpu_id = mpu.create()
-        parts = mpu.upload(mpu_id, 1)
-        mpu.complete(mpu_id, parts)
-
+        # Call abort_resume to handle both abort and resume scenarios
+        mpu.abort_resume("resume")
+        
         file_upload = FileUpload.get(guid)
         if isinstance(file_upload, str):
             raise Exception("Invalid file upload data returned from get method")
