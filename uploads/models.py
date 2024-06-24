@@ -17,6 +17,11 @@ class FileUpload:
     def save(self):
         self.updated_at = time.time()
         cache.set(self.guid, self.to_dict(), timeout=None)
+        if self.status == 'uploading':
+            cache.set(f'upload_task_{self.guid}', self.to_dict(), timeout=None)
+        elif self.status in ['paused', 'canceled']:
+            cache.delete(f'upload_task_{self.guid}')
+
 
     def to_dict(self):
         return {

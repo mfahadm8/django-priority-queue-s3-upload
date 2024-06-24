@@ -9,7 +9,7 @@ from .models import FileUpload
 from django.core.cache import cache
 import traceback
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 s3_client = boto3.client('s3')
@@ -24,6 +24,7 @@ class ProgressPercentage:
         self._last_saved_progress = 0
 
     def __call__(self, bytes_amount):
+    
         self._seen_so_far += bytes_amount
         percentage = (self._seen_so_far / self._size) * 100
         if percentage - self._last_saved_progress >= 3.0:
@@ -33,6 +34,12 @@ class ProgressPercentage:
             logger.info(f"Updated progress for {self._guid}: {percentage:.2f}%")
             self._last_saved_progress = percentage
 
+        task_status_key = f'upload_task_{self._guid}'
+        task_guid = cache.get(task_status_key)
+        if not task_guid:
+            logger.info(f"Upload for {self._guid} has been paused. Stopping upload.")
+            raise Exception("Upload paused")
+        
 def upload_file(file_path, object_name, guid):
     file_size = os.path.getsize(file_path)
     config = TransferConfig(multipart_threshold=1024*25, max_concurrency=10, multipart_chunksize=1024*25, use_threads=True)
@@ -80,16 +87,7 @@ def process_queue():
                 file_upload.save()
 
                 process_file_upload.delay(file_path, object_name, guid)
-        else:
-            for key in cache.scan_iter("upload_task_*"):
-                task = cache.get(key)
-                if task:
-                    file_upload = FileUpload.get(key.split('_')[-1])
-                    if file_upload and (file_upload.status == 'paused' or file_upload.status == 'canceled'):
-                        task.pause()
-                        if file_upload.status == 'canceled':
-                            cache.delete(key)
-
+                
     except Exception as e:
         logger.error(f"Error processing queue: {e}")
         logger.error(traceback.format_exc())

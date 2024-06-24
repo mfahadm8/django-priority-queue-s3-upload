@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from .models import FileUpload
 from django.conf import settings
+from django.core.cache import cache
 from .serializers import FileUploadSerializer, UpdatePrioritySerializer, UpdateStatusSerializer
 
 class FileUploadViewSet(viewsets.ViewSet):
