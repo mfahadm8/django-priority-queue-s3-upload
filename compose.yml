@@ -38,7 +38,8 @@ services:
     image: redis:latest
     ports:
       - 6379:6379
-
+    volumes:
+      - redis-data:/data
 
   worker:
     build:
@@ -59,3 +60,7 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: file_uploader.settings
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672/
+
+  
+volumes:
+  redis-data:

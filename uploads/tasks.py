@@ -1,4 +1,3 @@
-# uploads/tasks.py
 import os
 import boto3
 from celery import shared_task
@@ -8,6 +7,7 @@ from .models import FileUpload
 from django.core.cache import cache
 import traceback
 import time
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -31,33 +31,34 @@ class S3MultipartUpload:
 
     def get_all_parts(self, upload_id):
         parts = self.s3.list_parts(Bucket=self.bucket, Key=self.key, UploadId=upload_id)
-        rparts = [{"PartNumber": part["PartNumber"], "ETag": part["ETag"]} for part in parts["Parts"]]
+        rparts = [{"PartNumber": part["PartNumber"], "ETag": part["ETag"]} for part in parts.get("Parts", [])]
         return rparts
 
     def get_next_part(self, upload_id):
         parts = self.s3.list_parts(Bucket=self.bucket, Key=self.key, UploadId=upload_id)
-        next_part_marker = parts["NextPartNumberMarker"]
+        next_part_marker = parts.get("NextPartNumberMarker", 0)
         return next_part_marker
 
     def abort_resume(self, action):
         mpus = self.s3.list_multipart_uploads(Bucket=self.bucket)
         upload_parts_exists = False
+        logger.info(f"FileUpload action {action}")
         if "Uploads" in mpus:
             for u in mpus["Uploads"]:
                 upload_id = u["UploadId"]
                 if u["Key"] != self.key:
                     continue
-                upload_parts_exists= True
+                upload_parts_exists = True
                 if action == "abort":
                     self.s3.abort_multipart_upload(Bucket=self.bucket, Key=self.key, UploadId=upload_id)
                 elif action == "resume":
                     try:
                         next_part = self.get_next_part(upload_id)
+                        self.update_progress(next_part-1)
                         new_parts = self.upload(upload_id, next_part)
                         new_parts = self.get_all_parts(upload_id)
                         self.complete(upload_id, new_parts)
                     except self.s3.exceptions.NoSuchUpload:
-                        # Multipart upload was never initiated; start a new one
                         mpu_id = self.create()
                         new_parts = self.upload(mpu_id, 1)
                         self.complete(mpu_id, new_parts)
@@ -79,7 +80,7 @@ class S3MultipartUpload:
                 f.read(self.part_bytes)
             while True:
                 data = f.read(self.part_bytes)
-                if not len(data):
+                if not data:
                     break
                 part = self.s3.upload_part(Body=data, Bucket=self.bucket, Key=self.key, UploadId=mpu_id, PartNumber=part_number)
                 parts.append({"PartNumber": part_number, "ETag": part["ETag"]})
@@ -93,15 +94,14 @@ class S3MultipartUpload:
 
     def update_progress(self, part_number):
         progress = (part_number * self.part_bytes / self.total_bytes) * 100
+        logger.info(f"FileUpload progress {self.guid} : {progress}")
         file_upload = FileUpload.get(self.guid, use_task_key=True)
-        logger.info("here")
-        if isinstance(file_upload, str):
+        if not file_upload:
+            logger.error(f"FileUpload data not found in cache for guid: {self.guid}")
             raise Exception("Invalid file upload data returned from get method")
         file_upload.progress = progress
-        file_upload.bytes_transfered = part_number * self.part_bytes
-
+        file_upload.bytes_transferred = part_number * self.part_bytes
         file_upload.save()
-
         task_status_key = f'upload_task_{self.guid}'
         task_guid = cache.get(task_status_key)
         if not task_guid:
@@ -112,36 +112,30 @@ class S3MultipartUpload:
 def process_file_upload(file_path, object_name, guid):
     try:
         file_upload = FileUpload.get(guid)
-        if isinstance(file_upload, str):
+        if not file_upload:
+            logger.error(f"FileUpload data not found in cache for guid: {guid}")
             raise Exception("Invalid file upload data returned from get method")
+
         file_upload.status = 'uploading'
         file_upload.save(use_task_key=True)
 
-        mpu = S3MultipartUpload(BUCKET_NAME, object_name, file_path, guid)
-        task_status_key = f'upload_task_{guid}'
-        cache.set(task_status_key, guid, timeout=None)
+        file_size = os.stat(file_path).st_size
+        file_upload.total_bytes = file_size
+        file_upload.save()
 
-        # Call abort_resume to handle both abort and resume scenarios
-        mpu.abort_resume("resume")
-        
-        file_upload = FileUpload.get(guid)
-        if isinstance(file_upload, str):
-            raise Exception("Invalid file upload data returned from get method")
+        uploader = S3MultipartUpload(BUCKET_NAME, object_name, file_path, guid)
+        uploader.abort_resume("resume")
+
         file_upload.status = 'completed'
         file_upload.progress = 100
-        file_upload.save()
-        return {'status': 'completed'}
+        file_upload.save(use_task_key=True)
     except Exception as e:
-        logger.error(f"Error uploading {file_path}: {e}")
-        logger.error(traceback.format_exc())
+        logger.error(f"Error processing file upload: {e}\n{traceback.format_exc()}")
         file_upload = FileUpload.get(guid)
-        if isinstance(file_upload, str):
-            logger.error("Invalid file upload data returned from get method")
-        else:
+        if file_upload:
             file_upload.status = 'failed'
-            file_upload.save()
-        return {'status': 'failed', 'error': str(e)}
-    
+            file_upload.save(use_task_key=True)
+        raise e
 
 @shared_task
 def process_queue():
@@ -164,8 +158,9 @@ def process_queue():
 
 @shared_task
 def monitor_stalled_uploads():
-    uploading_tasks = FileUpload.filter(status='uploading')
+    uploading_tasks = FileUpload.filter(prefix='',status='uploading')
     for file_upload in uploading_tasks:
         if file_upload.is_stalled():
+            logger.info(f"Task is in stalled state, changing status to queued")
             file_upload.status = 'queued'
             file_upload.save()

@@ -15,7 +15,7 @@ class UploadsConfig(AppConfig):
         Checks if the current command is for Celery.
         """
         logging.info(sys.argv)
-        return 'celery_worker' in sys.argv
+        return 'file_uploader.asgi:application' not in sys.argv
 
 
     def ready(self):
