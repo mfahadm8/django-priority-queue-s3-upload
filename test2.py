@@ -1,48 +1,24 @@
-import requests
+import aioredis
+import asyncio
 
-# Set the base URL for your API
-BASE_URL = 'http://127.0.0.1:8001/uploads/file_uploads'
+async def listen_to_redis():
+    redis = await aioredis.from_url('redis://0.0.0.0:6379', decode_responses=True)
+    keyspace_channel = "__keyspace@0__:*"  # Listen to all keys in database 0
+    pubsub = redis.pubsub()
+    await pubsub.psubscribe(keyspace_channel)  # Pattern subscribe to keyspace notifications
+    
+    print("Subscribed to Redis keyspace notifications for all keys")
+    
+    async for message in pubsub.listen():
+        print(f"Received message from Redis: {message}")
+        if message['type'] == 'pmessage':  # Pattern message
+            channel = message['channel']
+            event_type = message['data']
+            key = channel.split(':')[-1]
+            if event_type == 'set':
+                value = await redis.get(key)
+                print(f"Key {key} was set to {value}")
+            elif event_type == 'del':
+                print(f"Key {key} was deleted")
 
-# Define the GUID and file information
-guid = 'dummy_file.zip'  # Replace with an actual GUID from your database
-
-# Headers for the requests
-headers = {
-    'Content-Type': 'application/json',
-}
-
-# Function to update the priority
-def update_priority(guid, priority):    
-    url = f'{BASE_URL}/update_priority/'
-    data = {
-        'guid': guid,
-        'priority': priority,
-    }
-    response = requests.post(url, json=data, headers=headers)
-    print('Update Priority Response:', response.json())
-
-# Function to update the status
-def update_status(guid, status):
-    url = f'{BASE_URL}/update_status/'
-    data = {
-        'guid': guid,
-        'status': status,
-    }
-    response = requests.post(url, json=data, headers=headers)
-    print('Update Status Response:', response.json())
-
-# # Test updating the priority
-# print("Testing Update Priority API")
-# update_priority(guid, 1)  # Set priority to 1
-
-# Test pausing the upload
-print("\nTesting Pause Upload API")
-update_status(guid, 'paused')
-
-# # Test resuming the upload
-# print("\nTesting Resume Upload API")
-# update_status(guid, 'resume')
-
-# # Test canceling the upload
-# print("\nTesting Cancel Upload API")
-# update_status(guid, 'cancel')
+asyncio.run(listen_to_redis())
