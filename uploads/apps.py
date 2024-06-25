@@ -14,7 +14,8 @@ class UploadsConfig(AppConfig):
         """
         Checks if the current command is for Celery.
         """
-        return 'celery' in sys.argv
+        logging.info(sys.argv)
+        return 'celery_worker' in sys.argv
 
 
     def ready(self):

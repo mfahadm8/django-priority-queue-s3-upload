@@ -48,7 +48,7 @@ services:
     depends_on:
       - rabbitmq
       - web
-    command: celery -A file_uploader worker --beat --concurrency=5 --loglevel=INFO
+    command: python manage.py celery_worker
     ports:
       - 6900:6900
       - 6899:6899
