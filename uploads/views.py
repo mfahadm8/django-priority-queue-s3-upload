@@ -1,6 +1,4 @@
-# uploads/views.py
-
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status  # Ensure status is imported from rest_framework
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from .models import FileUpload
@@ -81,19 +79,19 @@ class FileUploadViewSet(viewsets.ViewSet):
         serializer = UpdateStatusSerializer(data=request.data)
         if serializer.is_valid():
             guid = serializer.validated_data['guid']
-            status = serializer.validated_data['status']
+            file_upload_status = serializer.validated_data['status']
             file_upload = FileUpload.get(guid)
             if file_upload:
-                if status == 'paused':
+                if file_upload_status == 'paused':
                     queued_uploads = FileUpload.filter(status='queued')
                     if queued_uploads:
                         last_item = max(queued_uploads, key=lambda x: x.priority)
                         file_upload.priority, last_item.priority = last_item.priority, file_upload.priority
                         last_item.save()
                     file_upload.status = 'paused'
-                elif status == 'resume':
+                elif file_upload_status == 'resume':
                     file_upload.status = 'queued'
-                elif status == 'cancel':
+                elif file_upload_status == 'cancel':
                     file_upload.status = 'canceled'
                 file_upload.save()
                 return Response({'status': 'status updated'})

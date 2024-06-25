@@ -153,12 +153,21 @@ worker_prefetch_multiplier = 1
 broker_connection_retry_on_startup = True 
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
+# Use RedBeat as the Celery scheduler
+CELERY_BEAT_SCHEDULER = 'redbeat.RedBeatScheduler'
+
+# RedBeat settings
+REDBEAT_REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
+REDBEAT_LOCK_KEY = None  # default key is fine
+REDBEAT_KEY_PREFIX = 'redbeat:'
+REDBEAT_LOCK_TIMEOUT =  int(timedelta(minutes=5).total_seconds())
+
 CELERY_BEAT_SCHEDULE = {
     'process-queue-every-5-seconds': {
         'task': 'uploads.tasks.process_queue',
         'schedule': 5.0,
     },
-     'monitor-stalled-uploads-every-5-minutes': {
+    'monitor-stalled-uploads-every-5-minutes': {
         'task': 'uploads.tasks.monitor_stalled_uploads',
         'schedule': 300.0,
     },
