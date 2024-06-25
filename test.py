@@ -15,7 +15,7 @@ def on_open(ws):
     ws.send(json.dumps({"guid": "dummy_file.zip"}))
 
 if __name__ == "__main__":
-    guid = "dummy_file.zip"
+    guid = "d4.zip"
     websocket.enableTrace(True)
     ws = websocket.WebSocketApp(f"ws://localhost:8001/ws/progress/{guid}/",
                                 on_message=on_message,
