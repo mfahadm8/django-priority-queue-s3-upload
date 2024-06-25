@@ -40,6 +40,11 @@ class FileUpload:
             'bytes_transfered': self.bytes_transfered,
             'total_bytes':self.total_bytes
         }
+        
+    def is_stalled(self):
+        stale_threshold = 600 
+        return True if time.time() - self.updated_at>stale_threshold else False 
+
 
     @classmethod
     def get(cls, guid, use_task_key=False):

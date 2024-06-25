@@ -99,7 +99,7 @@ class S3MultipartUpload:
             raise Exception("Invalid file upload data returned from get method")
         file_upload.progress = progress
         file_upload.bytes_transfered = part_number * self.part_bytes
-        
+
         file_upload.save()
 
         task_status_key = f'upload_task_{self.guid}'
@@ -164,14 +164,8 @@ def process_queue():
 
 @shared_task
 def monitor_stalled_uploads():
-    stale_threshold = 600 
-    current_time = time.time()
-
-    # Fetch all uploading tasks
     uploading_tasks = FileUpload.filter(status='uploading')
-    
     for file_upload in uploading_tasks:
-        if file_upload.is_stalled(stale_threshold):
-            # Reset status to 'queued'
+        if file_upload.is_stalled():
             file_upload.status = 'queued'
             file_upload.save()
