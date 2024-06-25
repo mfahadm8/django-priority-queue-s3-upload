@@ -33,6 +33,7 @@ class FileCreationHandler(FileSystemEventHandler):
                     guid=guid,
                     instance_uid=instance_uid,
                     priority=priority,
+                    total_bytes=os.stat(file_path).st_size,
                     status='queued'
                 )
                 file_upload.save()

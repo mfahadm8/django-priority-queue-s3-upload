@@ -1,8 +1,9 @@
 from django.core.cache import cache
 import time
+import json
 
 class FileUpload:
-    def __init__(self, file_path, object_name, guid, instance_uid, priority, status='queued', progress=0, created_at=None, updated_at=None, timestamp=None):
+    def __init__(self, file_path, object_name, guid, instance_uid, priority, total_bytes, status='queued',progress=0, created_at=None, updated_at=None, timestamp=None, bytes_transfered=0):
         self.file_path = file_path
         self.object_name = object_name
         self.guid = guid
@@ -13,12 +14,14 @@ class FileUpload:
         self.updated_at = updated_at or time.time()
         self.timestamp = timestamp or time.time()
         self.progress = progress
+        self.bytes_transfered = bytes_transfered
+        self.total_bytes = total_bytes
 
     def save(self, use_task_key=False):
         self.updated_at = time.time()
-        cache.set(self.guid, self.to_dict(), timeout=None)
+        cache.set(self.guid, json.dumps(self.to_dict()))
         if use_task_key or self.status == 'uploading':
-            cache.set(f'upload_task_{self.guid}', self.to_dict(), timeout=None)
+            cache.set(f'upload_task_{self.guid}', json.dumps(self.to_dict()))
         elif self.status in ['paused', 'canceled']:
             cache.delete(f'upload_task_{self.guid}')
 
@@ -34,12 +37,14 @@ class FileUpload:
             'updated_at': self.updated_at,
             'timestamp': self.timestamp,
             'progress': self.progress,
+            'bytes_transfered': self.bytes_transfered,
+            'total_bytes':self.total_bytes
         }
 
     @classmethod
     def get(cls, guid, use_task_key=False):
         key = f'upload_task_{guid}' if use_task_key else guid
-        data = cache.get(key)
+        data = json.loads(cache.get(key))
         if data:
             return cls(**data)
         return None
@@ -50,8 +55,13 @@ class FileUpload:
         results = []
         for key in all_keys:
             data = cache.get(key)
-            if isinstance(data, dict) and all(data.get(k) == v for k, v in kwargs.items()):
-                results.append(cls(**data))
+            if data:
+                try:
+                    data_dict = json.loads(data)
+                    if isinstance(data_dict, dict) and all(data_dict.get(k) == v for k, v in kwargs.items()):
+                        results.append(cls(**data_dict))
+                except (TypeError, json.JSONDecodeError):
+                    continue
         return results
 
     @classmethod
@@ -62,7 +72,7 @@ class FileUpload:
     @classmethod
     def all(cls):
         all_keys = cache.keys('*')
-        results = [cache.get(key) for key in all_keys if cache.get(key)]
+        results = [json.loads(cache.get(key)) for key in all_keys if json.loads(cache.get(key))]
         return [cls(**result) for result in results if isinstance(result, dict)]
 
     def delete(self, use_task_key=False):

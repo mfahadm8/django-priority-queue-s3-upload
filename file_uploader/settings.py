@@ -158,4 +158,8 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'uploads.tasks.process_queue',
         'schedule': 5.0,
     },
+     'monitor-stalled-uploads-every-5-minutes': {
+        'task': 'uploads.tasks.monitor_stalled_uploads',
+        'schedule': 300.0,
+    },
 }

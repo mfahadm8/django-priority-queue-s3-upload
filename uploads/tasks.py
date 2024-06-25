@@ -7,7 +7,7 @@ from django.conf import settings
 from .models import FileUpload
 from django.core.cache import cache
 import traceback
-
+import time
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ BUCKET_NAME = 'cdk-hnb659fds-assets-182426352951-ap-southeast-1'
 class S3MultipartUpload:
     PART_MINIMUM = int(5 * 1024 * 1024)
 
-    def __init__(self, bucket, key, local_path, guid, part_size=int(15 * 1024 * 1024), profile_name=None, region_name="ap-southeast-1", verbose=False):
+    def __init__(self, bucket, key, local_path, guid, part_size=int(15 * 1024 * 1024), profile_name=None, region_name="ap-southeast-1", verbose=True):
         self.bucket = bucket
         self.key = key
         self.path = local_path
@@ -94,10 +94,14 @@ class S3MultipartUpload:
     def update_progress(self, part_number):
         progress = (part_number * self.part_bytes / self.total_bytes) * 100
         file_upload = FileUpload.get(self.guid, use_task_key=True)
+        logger.info("here")
         if isinstance(file_upload, str):
             raise Exception("Invalid file upload data returned from get method")
         file_upload.progress = progress
+        file_upload.bytes_transfered = part_number * self.part_bytes
+        
         file_upload.save()
+
         task_status_key = f'upload_task_{self.guid}'
         task_guid = cache.get(task_status_key)
         if not task_guid:
@@ -137,6 +141,7 @@ def process_file_upload(file_path, object_name, guid):
             file_upload.status = 'failed'
             file_upload.save()
         return {'status': 'failed', 'error': str(e)}
+    
 
 @shared_task
 def process_queue():
@@ -155,3 +160,18 @@ def process_queue():
     except Exception as e:
         logger.error(f"Error processing queue: {e}")
         logger.error(traceback.format_exc())
+
+
+@shared_task
+def monitor_stalled_uploads():
+    stale_threshold = 600 
+    current_time = time.time()
+
+    # Fetch all uploading tasks
+    uploading_tasks = FileUpload.filter(status='uploading')
+    
+    for file_upload in uploading_tasks:
+        if file_upload.is_stalled(stale_threshold):
+            # Reset status to 'queued'
+            file_upload.status = 'queued'
+            file_upload.save()
