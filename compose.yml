@@ -41,7 +41,7 @@ services:
     volumes:
       - redis-data:/data
     entrypoint: >
-      sh -c "redis-server --notify-keyspace-events K"
+      sh -c "redis-server --notify-keyspace-events K$"
 
 
   worker:
