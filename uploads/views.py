@@ -1,10 +1,20 @@
-from rest_framework import viewsets, status  # Ensure status is imported from rest_framework
+# uploads/views.py
+
+from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from .models import FileUpload
 from django.conf import settings
-from django.core.cache import cache
+from .models import FileUpload
 from .serializers import FileUploadSerializer, UpdatePrioritySerializer, UpdateStatusSerializer
+from django.core.cache import cache
+
+PRIORITY_LEVELS = {
+    'highest': 1,
+    'high': 2,
+    'medium': 3,
+    'low': 4,
+    'lowest': 5,
+}
 
 class FileUploadViewSet(viewsets.ViewSet):
     """
@@ -53,23 +63,33 @@ class FileUploadViewSet(viewsets.ViewSet):
         serializer = UpdatePrioritySerializer(data=request.data)
         if serializer.is_valid():
             guid = serializer.validated_data['guid']
-            priority = serializer.validated_data['priority']
+            priority_label = serializer.validated_data['priority']  # Use priority levels 'highest', 'high', etc.
             file_upload = FileUpload.get(guid)
             if file_upload:
-                old_priority = file_upload.priority
-                file_upload.priority = priority
+                new_priority = PRIORITY_LEVELS[priority_label]
+
+                # Fetch all file uploads
+                all_uploads = FileUpload.all()
+
+                # Check if we need to pause any running tasks
+                if priority_label == 'highest':
+                    currently_uploading = [upload for upload in all_uploads if upload.status == 'uploading']
+                    to_pause = currently_uploading[:max(0, len(currently_uploading) - settings.MAX_UPLOADS + 1)]
+                    for upload in to_pause:
+                        upload.status = 'paused'
+                        upload.save()
+
+                # Ensure unique priorities by shifting others
+                for upload in all_uploads:
+                    if upload.priority >= new_priority:
+                        upload.priority += 1
+                        upload.save()
+
+                # Update the priority of the target file upload
+                file_upload.priority = new_priority
+                file_upload.status = 'queued' if priority_label == 'highest' else file_upload.status
                 file_upload.save()
 
-                # Adjust priorities if necessary
-                if priority <= settings.MAX_UPLOADS:
-                    if file_upload.status == 'paused':
-                        file_upload.status = 'queued'
-                        file_upload.save()
-                else:
-                    if file_upload.status == 'uploading':
-                        file_upload.status = 'paused'
-                        file_upload.save()
-                
                 return Response({'status': 'priority updated'})
             return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -26,8 +26,7 @@ class FileCreationHandler(FileSystemEventHandler):
         object_name = os.path.basename(file_path)
         guid = object_name
         instance_uid = 'some_instance_uid'
-        timestamp = time.time()
-        priority = int(timestamp)
+        priority = 3
         logging.info(f"New file detected to queue: {guid}")
         try:
             if not FileUpload.exists(guid):
