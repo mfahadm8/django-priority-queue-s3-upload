@@ -142,7 +142,7 @@ STATIC_URL = '/static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Maximum number of concurrent uploads
-MAX_UPLOADS=os.cpu_count() or 2
+MAX_UPLOADS= 2
 
 # Celery settings
 broker_url = os.environ.get("CELERY_BROKER_URL")

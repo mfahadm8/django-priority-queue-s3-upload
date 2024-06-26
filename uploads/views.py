@@ -7,6 +7,10 @@ from django.conf import settings
 from .models import FileUpload
 from .serializers import FileUploadSerializer, UpdatePrioritySerializer, UpdateStatusSerializer
 from django.core.cache import cache
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 PRIORITY_LEVELS = {
     'highest': 1,
@@ -63,16 +67,23 @@ class FileUploadViewSet(viewsets.ViewSet):
         serializer = UpdatePrioritySerializer(data=request.data)
         if serializer.is_valid():
             guid = serializer.validated_data['guid']
-            priority_label = serializer.validated_data['priority']  # Use priority levels 'highest', 'high', etc.
+            priority_label_or_level = serializer.validated_data['priority']
+            
+            # Handle both integer levels and string labels
+            if isinstance(priority_label_or_level, int):
+                new_priority = priority_label_or_level
+            else:
+                new_priority = PRIORITY_LEVELS.get(priority_label_or_level)
+                if new_priority is None:
+                    return Response({'error': 'Invalid priority label'}, status=status.HTTP_400_BAD_REQUEST)
+
             file_upload = FileUpload.get(guid)
             if file_upload:
-                new_priority = PRIORITY_LEVELS[priority_label]
-
                 # Fetch all file uploads
                 all_uploads = FileUpload.all()
 
                 # Check if we need to pause any running tasks
-                if priority_label == 'highest':
+                if priority_label_or_level == 'highest' or new_priority == 1:
                     currently_uploading = [upload for upload in all_uploads if upload.status == 'uploading']
                     to_pause = currently_uploading[:max(0, len(currently_uploading) - settings.MAX_UPLOADS + 1)]
                     for upload in to_pause:
@@ -87,7 +98,7 @@ class FileUploadViewSet(viewsets.ViewSet):
 
                 # Update the priority of the target file upload
                 file_upload.priority = new_priority
-                file_upload.status = 'queued' if priority_label == 'highest' else file_upload.status
+                file_upload.status = 'queued' if new_priority == 1 else file_upload.status
                 file_upload.save()
 
                 return Response({'status': 'priority updated'})
