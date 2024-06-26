@@ -22,7 +22,7 @@ class UploadProgressConsumer(AsyncWebsocketConsumer):
         logger.info(f"WebSocket connection closed for GUID: {self.guid}")
 
     async def start_listening(self):
-        self.keyspace_channel = f"__keyspace@1__::1:upload_task_{self.guid}"
+        self.keyspace_channel = f"__keyspace@1__::1:{self.guid}"
         self.pubsub = self.redis.pubsub()
         logger.info(f"Subscribing to Redis keyspace notifications for key: {self.guid}")
         await self.pubsub.psubscribe(self.keyspace_channel)
@@ -31,29 +31,27 @@ class UploadProgressConsumer(AsyncWebsocketConsumer):
 
     async def stop_listening(self):
         logger.info(f"Unsubscribing from Redis keyspace notifications for key: {self.guid}")
-        await self.pubsub.unsubscribe(self.keyspace_channel)
+        await self.pubsub.punsubscribe(self.keyspace_channel)
         if self.listener_task:
             self.listener_task.cancel()
-            logger.info(f"Unsubscribed from Redis keyspace notifications for key: {self.guid}")
+            try:
+                await self.listener_task
+            except asyncio.CancelledError:
+                logger.info(f"Listener task cancelled")
 
     async def listen_to_redis(self):
         logger.info(f"Listening to Redis keyspace notifications for key: {self.guid}")
-        while True:
-            message = await self.pubsub.get_message()
-            if message:
-                logger.info(f"Received message from Redis: {message}")
-                await self.send(text_data=json.dumps({'event': 'set', 'value': message}))
-                if message['type'] == 'pmessage':
-                    event_type = message['data']
-                    if event_type == 'set':
-                        value = await self.redis.get(self.guid)
-                        await self.send(text_data=json.dumps({'event': 'set', 'value': value}))
-                        logger.info(f"Key {self.guid} was set to {value}")
-                    elif event_type == 'del':
-                        await self.send(text_data=json.dumps({'event': 'delete'}))
-                        logger.info(f"Key {self.guid} was deleted")
-            await asyncio.sleep(0)  # Yield control to event loop
+        async for message in self.pubsub.listen():
+            logger.info(f"Received message from Redis: {message}")
+            if message['type'] == 'pmessage':
+                event_type = message['data']
+                if event_type == 'set':
+                    value = await self.redis.get(self.guid)
+                    await self.send(text_data=json.dumps({'event': 'set', 'value': value}))
+                    logger.info(f"Key {self.guid} was set to {value}")
+                elif event_type == 'del':
+                    await self.send(text_data=json.dumps({'event': 'delete'}))
+                    logger.info(f"Key {self.guid} was deleted")
 
     async def receive(self, text_data):
         pass  # Handle incoming messages if needed
-

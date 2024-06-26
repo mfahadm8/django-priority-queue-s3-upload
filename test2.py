@@ -3,7 +3,7 @@ import asyncio
 
 async def listen_to_redis():
     redis = await aioredis.from_url('redis://0.0.0.0:6379', decode_responses=True)
-    keyspace_channel = "__keyspace@0__:*"  # Listen to all keys in database 0
+    keyspace_channel = "__keyspace@1__::1:d57.zip*"  # Listen to all keys in database 0
     pubsub = redis.pubsub()
     await pubsub.psubscribe(keyspace_channel)  # Pattern subscribe to keyspace notifications
     
