@@ -12,6 +12,10 @@ STABILITY_THRESHOLD = 2
 logging.basicConfig(level=logging.INFO)
 
 class FileCreationHandler(FileSystemEventHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.process_existing_files()
+
     def on_created(self, event):
         if not event.is_directory:
             file_path = event.src_path
@@ -59,6 +63,14 @@ class FileCreationHandler(FileSystemEventHandler):
 
         logging.info(f"File is stable: {file_path}")
         return True
+
+    def process_existing_files(self):
+        logging.info(f"Processing existing files in {WATCHED_DIR}")
+        for file_name in os.listdir(WATCHED_DIR):
+            file_path = os.path.join(WATCHED_DIR, file_name)
+            if os.path.isfile(file_path):
+                if self.is_file_stable(file_path):
+                    self.process_file(file_path)
 
 def start_watcher(extension, queue_name):
     if not os.path.exists(WATCHED_DIR):

@@ -1,5 +1,6 @@
 import os
 import boto3
+import hashlib
 from celery import shared_task
 import logging
 from django.conf import settings
@@ -54,7 +55,7 @@ class S3MultipartUpload:
                 elif action == "resume":
                     try:
                         next_part = self.get_next_part(upload_id)
-                        self.update_progress(next_part-1)
+                        self.update_progress(next_part - 1)
                         new_parts = self.upload(upload_id, next_part)
                         new_parts = self.get_all_parts(upload_id)
                         self.complete(upload_id, new_parts)
@@ -90,7 +91,30 @@ class S3MultipartUpload:
 
     def complete(self, mpu_id, parts):
         result = self.s3.complete_multipart_upload(Bucket=self.bucket, Key=self.key, UploadId=mpu_id, MultipartUpload={"Parts": parts})
+        self.verify_checksum()
         return result
+
+    def verify_checksum(self):
+        local_checksum = self.calculate_sha256(self.path)
+        s3_checksum = self.calculate_s3_sha256(self.bucket, self.key)
+        if local_checksum == s3_checksum:
+            logger.info(f"Checksum verification passed for {self.path}")
+            os.remove(self.path)
+        else:
+            logger.error(f"Checksum verification failed for {self.path}")
+
+    @staticmethod
+    def calculate_sha256(file_path):
+        sha256 = hashlib.sha256()
+        with open(file_path, 'rb') as f:
+            for chunk in iter(lambda: f.read(4096), b''):
+                sha256.update(chunk)
+        return sha256.hexdigest()
+
+    def calculate_s3_sha256(self, bucket, key):
+        s3_object = self.s3.get_object(Bucket=bucket, Key=key)
+        s3_sha256 = hashlib.sha256(s3_object['Body'].read()).hexdigest()
+        return s3_sha256
 
     def update_progress(self, part_number):
         progress = (part_number * self.part_bytes / self.total_bytes) * 100
@@ -155,10 +179,9 @@ def process_queue():
         logger.error(f"Error processing queue: {e}")
         logger.error(traceback.format_exc())
 
-
 @shared_task
 def monitor_stalled_uploads():
-    uploading_tasks = FileUpload.filter(prefix='',status='uploading')
+    uploading_tasks = FileUpload.filter(prefix='', status='uploading')
     for file_upload in uploading_tasks:
         if file_upload.is_stalled():
             logger.info(f"Task is in stalled state, changing status to queued")
