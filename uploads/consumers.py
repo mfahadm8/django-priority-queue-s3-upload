@@ -1,4 +1,5 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
+from .models import FileUpload
 import json
 import aioredis
 import asyncio
@@ -22,7 +23,7 @@ class UploadProgressConsumer(AsyncWebsocketConsumer):
         logger.info(f"WebSocket connection closed for GUID: {self.guid}")
 
     async def start_listening(self):
-        self.keyspace_channel = f"__keyspace@1__::1:{self.guid}"
+        self.keyspace_channel = f"__keyspace@1__::1:upload_task_*"
         self.pubsub = self.redis.pubsub()
         logger.info(f"Subscribing to Redis keyspace notifications for key: {self.guid}")
         await self.pubsub.psubscribe(self.keyspace_channel)
@@ -46,8 +47,8 @@ class UploadProgressConsumer(AsyncWebsocketConsumer):
             if message['type'] == 'pmessage':
                 event_type = message['data']
                 if event_type == 'set':
-                    value = await self.redis.get(self.guid)
-                    await self.send(text_data=json.dumps({'event': 'set', 'value': value}))
+                    value = FileUpload.get(self.guid)
+                    await self.send(text_data=json.dumps({'event': 'set', 'value': value.to_dict()}))
                     logger.info(f"Key {self.guid} was set to {value}")
                 elif event_type == 'del':
                     await self.send(text_data=json.dumps({'event': 'delete'}))
