@@ -160,7 +160,8 @@ CELERY_BEAT_SCHEDULER = 'redbeat.RedBeatScheduler'
 REDBEAT_REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
 REDBEAT_LOCK_KEY = None  # default key is fine
 REDBEAT_KEY_PREFIX = 'redbeat:'
-REDBEAT_LOCK_TIMEOUT =  int(timedelta(minutes=5).total_seconds())
+REDBEAT_LOCK_TIMEOUT =  60
+beat_max_loop_interval = 10
 
 CELERY_BEAT_SCHEDULE = {
     'process-queue-every-5-seconds': {
