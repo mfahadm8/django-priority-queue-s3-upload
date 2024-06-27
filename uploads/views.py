@@ -78,6 +78,8 @@ class FileUploadViewSet(viewsets.ViewSet):
                     return Response({'error': 'Invalid priority label'}, status=status.HTTP_400_BAD_REQUEST)
 
             file_upload = FileUpload.get(guid)
+            logger.info("1")
+            logger.info(guid)
             if file_upload:
                 # Fetch all file uploads
                 all_uploads = FileUpload.all()
@@ -86,7 +88,11 @@ class FileUploadViewSet(viewsets.ViewSet):
                 if priority_label_or_level == 'highest' or new_priority == 1:
                     currently_uploading = [upload for upload in all_uploads if upload.status == 'uploading']
                     to_pause = currently_uploading[:max(0, len(currently_uploading) - settings.MAX_UPLOADS + 1)]
+                    logger.info("To Pause")
+                    logger.info(to_pause)
                     for upload in to_pause:
+                        logger.info("To Pause 2 ")
+                        logger.info(upload.to_dict())
                         upload.status = 'paused'
                         upload.save()
 

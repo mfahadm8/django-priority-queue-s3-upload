@@ -18,7 +18,7 @@ BUCKET_NAME = 'cdk-hnb659fds-assets-182426352951-ap-southeast-1'
 class S3MultipartUpload:
     PART_MINIMUM = int(5 * 1024 * 1024)
 
-    def __init__(self, bucket, key, local_path, guid, part_size=int(15 * 1024 * 1024), profile_name=None, region_name="ap-southeast-1", verbose=True):
+    def __init__(self, bucket, key, local_path, guid, part_size=int(25 * 1024 * 1024), profile_name=None, region_name="ap-southeast-1", verbose=True): # For chunk size > 16, Aws calculates SHA-1 instead of MD5
         self.bucket = bucket
         self.key = key
         self.path = local_path
@@ -117,7 +117,7 @@ class S3MultipartUpload:
         return s3_sha256
 
     def update_progress(self, part_number):
-        progress = (part_number * self.part_bytes / self.total_bytes) * 100
+        progress = min(100,(part_number * self.part_bytes / self.total_bytes) * 100)
         logger.info(f"FileUpload progress {self.guid} : {progress}")
         file_upload = FileUpload.get(self.guid, use_task_key=True)
         if not file_upload:
@@ -166,7 +166,7 @@ def process_queue():
     try:
         uploading_tasks = len(FileUpload.filter(prefix='', status='uploading'))
         if uploading_tasks < settings.MAX_UPLOADS:
-            file_uploads = sorted(FileUpload.filter(prefix='', status='queued'), key=lambda x: (-x.priority, x.created_at))[:1]
+            file_uploads = sorted(FileUpload.filter(prefix='', status='queued'), key=lambda x: (x.priority, x.created_at))[:1]
             if file_uploads:
                 file_upload = file_uploads[0]
                 file_path = file_upload.file_path
