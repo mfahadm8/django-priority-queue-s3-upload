@@ -60,10 +60,12 @@ class S3MultipartUpload:
                         new_parts = self.upload(upload_id, next_part)
                         new_parts = self.get_all_parts(upload_id)
                         self.complete(upload_id, new_parts)
-                    except self.s3.exceptions.NoSuchUpload:
-                        mpu_id = self.create()
-                        new_parts = self.upload(mpu_id, 1)
-                        self.complete(mpu_id, new_parts)
+                    except self.s3.exceptions.NoSuchUpload as e:
+                        file_upload = FileUpload.get(self.guid)
+                        if file_upload.status=='completed' or file_upload.progress==100:
+                            logger.info('Upload already completed')
+                        else:
+                            logger.error(traceback.format_exc())
 
         if action == "resume" and not upload_parts_exists:
             mpu_id = self.create()
