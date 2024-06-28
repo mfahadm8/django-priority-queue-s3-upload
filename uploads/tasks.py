@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 s3_client = boto3.client('s3')
 BUCKET_NAME = 'cdk-hnb659fds-assets-182426352951-ap-southeast-1'
 
+
 class S3MultipartUpload:
     PART_MINIMUM = int(5 * 1024 * 1024)
 
@@ -110,11 +111,11 @@ class S3MultipartUpload:
 
     def complete(self, mpu_id, parts):
         result = self.s3.complete_multipart_upload(Bucket=self.bucket, Key=self.key, UploadId=mpu_id, MultipartUpload={"Parts": parts})
-        self.verify_checksum(mpu_id)
+        self.verify_checksum()
         return result
 
-    def verify_checksum(self,upload_id):
-        local_checksum = self.calculate_sha256_for_parts(upload_id)
+    def verify_checksum(self):
+        local_checksum = self.calculate_sha256_for_parts()
         s3_checksum = self.calculate_s3_sha256(self.bucket, self.key)
         if local_checksum == s3_checksum:
             logger.info(f"Checksum verification passed for {self.path}")
@@ -128,12 +129,16 @@ class S3MultipartUpload:
         sha256.update(data)
         return base64.b64encode(sha256.digest()).decode()
 
-    def calculate_sha256_for_parts(self,upload_id):
-        parts = self.get_all_parts(upload_id)
-        sha256 = hashlib.sha256()
-        for part in parts:
-            sha256.update(part["ChecksumSHA256"].encode())
-        return base64.b64encode(sha256.digest()).decode()
+    def calculate_sha256_for_parts(self):
+        combined_checksum = b""
+        with open(self.path, "rb") as f:
+            while True:
+                data = f.read(self.part_bytes)
+                if not data:
+                    break
+                part_checksum = base64.b64decode(self.calculate_sha256(data))
+                combined_checksum += part_checksum
+        return base64.b64encode(hashlib.sha256(combined_checksum).digest()).decode()
 
     def calculate_s3_sha256(self, bucket, key):
         s3_object = self.s3.get_object_attributes(Bucket=bucket, Key=key, ObjectAttributes=['Checksum'])
@@ -143,18 +148,6 @@ class S3MultipartUpload:
     def update_progress(self, part_number):
         progress = min(100, (part_number * self.part_bytes / self.total_bytes) * 100)
         logger.info(f"FileUpload progress {self.guid} : {progress}")
-        file_upload = FileUpload.get(self.guid, use_task_key=True)
-        if not file_upload:
-            logger.error(f"FileUpload data not found in cache for guid: {self.guid}")
-            raise Exception("Invalid file upload data returned from get method")
-        file_upload.progress = progress
-        file_upload.bytes_transferred = part_number * self.part_bytes
-        file_upload.save()
-        task_status_key = f'upload_task_{self.guid}'
-        task_guid = cache.get(task_status_key)
-        if not task_guid:
-            self.abort_resume("abort")
-            raise Exception("Upload paused")
 
 @shared_task(time_limit=10800)
 def process_file_upload(file_path, object_name, guid):
