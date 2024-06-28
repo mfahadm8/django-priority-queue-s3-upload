@@ -182,9 +182,9 @@ def process_file_upload(file_path, object_name, guid):
 def process_queue():
     try:
         uploading_tasks = len(FileUpload.filter(prefix='', status='uploading'))
-        logger.info(f"Found uploading tasks: {len(uploading_tasks)}")
+        logger.info(f"Found uploading tasks: {uploading_tasks}")
         logger.info(f"Max concurrent uploads supported: {str(settings.MAX_UPLOADS)}")
-        if uploading_tasks < settings.MAX_UPLOADS:
+        if uploading_tasks <= settings.MAX_UPLOADS:
             file_uploads = sorted(FileUpload.filter(prefix='', status='queued'), key=lambda x: (x.priority, x.created_at))[:1]
             if file_uploads:
                 file_upload = file_uploads[0]
