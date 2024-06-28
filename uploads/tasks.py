@@ -150,7 +150,19 @@ class S3MultipartUpload:
     def update_progress(self, part_number):
         progress = min(100, (part_number * self.part_bytes / self.total_bytes) * 100)
         logger.info(f"FileUpload progress {self.guid} : {progress}")
-
+        file_upload = FileUpload.get(self.guid, use_task_key=True)
+        if not file_upload:
+            logger.error(f"FileUpload data not found in cache for guid: {self.guid}")
+            raise Exception("Invalid file upload data returned from get method")
+        file_upload.progress = progress
+        file_upload.bytes_transferred = part_number * self.part_bytes
+        file_upload.save()
+        task_status_key = f'upload_task_{self.guid}'
+        task_guid = cache.get(task_status_key)
+        if not task_guid:
+            self.abort_resume("abort")
+            raise Exception("Upload paused")
+        
 @shared_task(time_limit=10800)
 def process_file_upload(file_path, object_name, guid):
     try:
