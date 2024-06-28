@@ -32,14 +32,14 @@ class S3MultipartUpload:
 
     def get_all_parts(self, upload_id):
         parts = self.s3.list_parts(Bucket=self.bucket, Key=self.key, UploadId=upload_id)
-        rparts = [{"PartNumber": part["PartNumber"], "ETag": part["ETag"]} for part in parts.get("Parts", [])]
+        rparts = [{"PartNumber": part["PartNumber"], "ETag": part["ETag"], "ChecksumSHA256": part.get("ChecksumSHA256")} for part in parts.get("Parts", [])]
         return rparts
 
     def get_next_part(self, upload_id):
         parts = self.s3.list_parts(Bucket=self.bucket, Key=self.key, UploadId=upload_id)
         next_part_marker = parts.get("NextPartNumberMarker", 0)
-        return next_part_marker + 1 
-    
+        return next_part_marker + 1
+
     def abort_resume(self, action):
         mpus = self.s3.list_multipart_uploads(Bucket=self.bucket)
         upload_parts_exists = False
@@ -91,7 +91,7 @@ class S3MultipartUpload:
                 sha256_checksum = self.calculate_sha256(data)
                 logger.info("Data-SHA-256")
                 logger.info(sha256_checksum)
-                
+
                 upload_kwargs = {
                     "Body": data,
                     "Bucket": self.bucket,
@@ -99,10 +99,8 @@ class S3MultipartUpload:
                     "UploadId": mpu_id,
                     "PartNumber": part_number,
                     "ChecksumAlgorithm": 'SHA256',
+                    "ChecksumSHA256": sha256_checksum,
                 }
-                # Include ChecksumSHA256 only if it is specified
-                if sha256_checksum:
-                    upload_kwargs["ChecksumSHA256"] = sha256_checksum
 
                 part = self.s3.upload_part(**upload_kwargs)
                 parts.append({"PartNumber": part_number, "ETag": part["ETag"], "ChecksumSHA256": sha256_checksum})
@@ -112,11 +110,11 @@ class S3MultipartUpload:
 
     def complete(self, mpu_id, parts):
         result = self.s3.complete_multipart_upload(Bucket=self.bucket, Key=self.key, UploadId=mpu_id, MultipartUpload={"Parts": parts})
-        self.verify_checksum()
+        self.verify_checksum(mpu_id)
         return result
 
-    def verify_checksum(self):
-        local_checksum = self.calculate_sha256_for_parts()
+    def verify_checksum(self,upload_id):
+        local_checksum = self.calculate_sha256_for_parts(upload_id)
         s3_checksum = self.calculate_s3_sha256(self.bucket, self.key)
         if local_checksum == s3_checksum:
             logger.info(f"Checksum verification passed for {self.path}")
@@ -130,8 +128,8 @@ class S3MultipartUpload:
         sha256.update(data)
         return base64.b64encode(sha256.digest()).decode()
 
-    def calculate_sha256_for_parts(self):
-        parts = self.get_all_parts()
+    def calculate_sha256_for_parts(self,upload_id):
+        parts = self.get_all_parts(upload_id)
         sha256 = hashlib.sha256()
         for part in parts:
             sha256.update(part["ChecksumSHA256"].encode())
