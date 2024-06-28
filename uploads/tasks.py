@@ -19,7 +19,7 @@ BUCKET_NAME = 'cdk-hnb659fds-assets-182426352951-ap-southeast-1'
 class S3MultipartUpload:
     PART_MINIMUM = int(5 * 1024 * 1024)
 
-    def __init__(self, bucket, key, local_path, guid, part_size=int(25 * 1024 * 1024), profile_name=None, region_name="ap-southeast-1", verbose=True):
+    def __init__(self, bucket, key, local_path, guid, part_size=int(17 * 1024 * 1024), profile_name=None, region_name="ap-southeast-1", verbose=True):
         self.bucket = bucket
         self.key = key
         self.path = local_path
@@ -182,6 +182,8 @@ def process_file_upload(file_path, object_name, guid):
 def process_queue():
     try:
         uploading_tasks = len(FileUpload.filter(prefix='', status='uploading'))
+        logger.info(f"Found uploading tasks: {len(uploading_tasks)}")
+        logger.info(f"Max concurrent uploads supported: {str(settings.MAX_UPLOADS)}")
         if uploading_tasks < settings.MAX_UPLOADS:
             file_uploads = sorted(FileUpload.filter(prefix='', status='queued'), key=lambda x: (x.priority, x.created_at))[:1]
             if file_uploads:
@@ -191,6 +193,7 @@ def process_queue():
                 guid = file_upload.guid
                 file_upload.status = 'uploading'
                 file_upload.save(use_task_key=True)
+                logger.info(f"Added another task to Queue: {str(settings.MAX_UPLOADS)}")
                 process_file_upload.delay(file_path, object_name, guid) 
     except Exception as e:
         logger.error(f"Error processing queue: {e}")

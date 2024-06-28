@@ -26,7 +26,7 @@ class FileUpload:
         cache.set(self.guid, data)
         if use_task_key or self.status == 'uploading':
             cache.set(f'upload_task_{self.guid}', data)
-        elif self.status in ['paused', 'canceled']:
+        elif self.status in ['paused', 'canceled','completed']:
             cache.delete(f'upload_task_{self.guid}')
 
     def to_dict(self):
@@ -100,5 +100,5 @@ class FileUpload:
     def delete(self, use_task_key=False):
         key = f'upload_task_{self.guid}' if use_task_key else self.guid
         cache.delete(self.guid)
-        if use_task_key or self.status in ['paused', 'canceled']:
+        if use_task_key or self.status in ['paused', 'canceled','completed']:
             cache.delete(key)

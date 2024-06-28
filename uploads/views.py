@@ -85,13 +85,15 @@ class FileUploadViewSet(viewsets.ViewSet):
                 all_uploads = FileUpload.all()
 
                 # Check if we need to pause any running tasks
-                if priority_label_or_level == 'highest' or new_priority == 1:
+                if priority_label_or_level == 'highest' or new_priority == 1 or new_priority > max(upload.priority for upload in all_uploads):
                     currently_uploading = [upload for upload in all_uploads if upload.status == 'uploading']
+                    # Sort the current uploading tasks by priority in descending order (least priority first)
+                    currently_uploading.sort(key=lambda x: x.priority, reverse=True)
                     to_pause = currently_uploading[:max(0, len(currently_uploading) - settings.MAX_UPLOADS + 1)]
                     logger.info("To Pause")
                     logger.info(to_pause)
                     for upload in to_pause:
-                        logger.info("To Pause 2 ")
+                        logger.info(f"Pausing upload for {upload.guid}")
                         logger.info(upload.to_dict())
                         upload.status = 'paused'
                         upload.save()
@@ -111,6 +113,7 @@ class FileUploadViewSet(viewsets.ViewSet):
             return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
     @action(detail=False, methods=['post'])
     def update_status(self, request):
         serializer = UpdateStatusSerializer(data=request.data)
@@ -122,7 +125,7 @@ class FileUploadViewSet(viewsets.ViewSet):
                 if file_upload_status == 'paused':
                     queued_uploads = FileUpload.filter(status='queued')
                     if queued_uploads:
-                        last_item = max(queued_uploads, key=lambda x: x.priority)
+                        last_item = max(queued_uploads, key=lambda x: x.priority) # swap priority with queued task of least priority
                         file_upload.priority, last_item.priority = last_item.priority, file_upload.priority
                         last_item.save()
                     file_upload.status = 'paused'
